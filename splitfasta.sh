@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ -z $1 ]]; then
-	echo "Use: 'splitfasta gz' or 'splitfasta fastq'"
+	echo "Use: 'splitfasta.sh gz' or 'splitfasta.sh fastq'"
 	exit 0
 fi 
 FILES=$PWD/*.$1
@@ -14,15 +14,20 @@ done
 nr=0
 nr_of_files=$(ls *.$1|wc -l)
 for f in ${FILES}; do
+    nr=$((nr+1))
+	echo -en 'Processing file: '${nr}'/'${nr_of_files}\\r
 	if [[ "$1" == "gz" ]]; then
-		u=gunzip ${f}; wait
+		gunzip -c ${f} > ${f/.gz/}; wait
+		u=${f/.gz/}
 	else
 		u=${f}
 	fi
-	nr=$((nr+1))
-	echo -en 'Processing file: '${nr}'/'${nr_of_files}\\r
-	b=$(dirname "$u")/vrl_blastn/$(basename "$u")
+	b=$(dirname "$f")/vrl_blastn/$(basename "$f")
 	b=${b/fastq/blastn}
+	if [[ "$1" == "gz" ]]; then
+	    gunzip -c ${b} > ${b/.gz/}; wait
+	    b=${b/.gz/}
+	fi
 	split_fasta.py -b ${b} -f ${u};wait
 	basename=${u##*/}
 	hitname=$PWD'/hits_'${basename/fastq/fa}
@@ -30,4 +35,6 @@ for f in ${FILES}; do
 	gzip $PWD/vrlhits/$(basename "$hitname");wait
 	rm $PWD'/nohits_'${basename/fastq/fa};wait
 	rm $PWD'/'${basename/fastq/fa};wait
+	rm ${b}; wait
+	rm ${u}; wait
 done
