@@ -33,8 +33,6 @@ for f in ${FILES}; do
 	hitname=$PWD'/hits_'${basename/fastq/fa}
 	mv ${hitname} $PWD/vrlhits
 	gzip $PWD/vrlhits/$(basename "$hitname");wait
-	rm $PWD'/nohits_'${basename/fastq/fa};wait
-	rm $PWD'/'${basename/fastq/fa};wait
-	rm ${b}; wait
-	rm ${u}; wait
+	rm $PWD'/nohits_'${basename/fastq/fa} $PWD'/'${basename/fastq/fa};wait
+	rm ${b} ${u}; wait
 done
