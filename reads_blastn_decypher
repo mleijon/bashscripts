@@ -1,0 +1,8 @@
+#!/bin/bash
+
+FILES="/home/decypher/micke/data/as-mink/190301/*.fasta"
+for f in $FILES; do
+name=${f##*/}
+outdir=/home/decypher/micke/data/as-mink/190301
+wait;dc_run -parameters /home/decypher/micke/tera-blastn-ml -query $f -database nt >$outdir/${name/.fasta/.blast}
+done
