@@ -1,4 +1,5 @@
 #!/bin/bash
+#Dummycomment
 
 FILES="/media/micke/7B9D13A66FF9DFB8/parvo/*R1*.gz"
 base=${FILES%/*}
