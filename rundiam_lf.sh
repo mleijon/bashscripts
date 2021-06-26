@@ -28,5 +28,8 @@ $fi_out -summary $out_dir/'summary.log'  SLIDINGWINDOW:4:15 MINLEN:75
 cat $out_dir/$sample_name* >> $out_dir/'__'$sample_name'.fastq'
 rm $out_dir/$sample_name*
 $HOME/software/$usearch -fastx_uniques $out_dir/'__'$sample_name'.fastq' \
--fastaout $out_dir/uniques.fasta -sizeout -relabel Uniq -strand both &>/dev/null
+-fastaout $out_dir/$sample_name'_uq.fasta' -sizeout \
+-relabel Uniq -strand both &>/dev/null
+rm $out_dir/'__'$sample_name'.fastq'
+gzip $out_dir/$sample_name'_uq.fasta'
 done
