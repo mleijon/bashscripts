@@ -32,4 +32,7 @@ $HOME/software/$usearch -fastx_uniques $out_dir/'__'$sample_name'.fastq' \
 -relabel Uniq -strand both &>/dev/null
 rm $out_dir/'__'$sample_name'.fastq'
 gzip $out_dir/$sample_name'_uq.fasta'
+diamin=$out_dir/$sample_name'_uq.fasta.gz'
+diamond blastx -d /ssd2/diamondDB/nr -q $diamin -o $out_dir/$sample_name'.daa'\
+ --max-target-seqs 5 --evalue 1E-5 --outfmt 102 -b 1 -c 1 --compress 1;wait
 done
