@@ -1,24 +1,32 @@
 #!/bin/bash
-#Dummycomment
 
-FILES="/media/micke/7B9D13A66FF9DFB8/parvo/*R1*.gz"
+usearch='usearch11.0.667_i86linux64'
+FILES=$1'/*R1*.gz'
+if [ -z "$2" ]; then
+  echo "Output files will not be gzipped."
+elif [ ${2,,} != "gz" ]; then
+  echo "Unknown argument: $2"
+  exit 0
+else
+  echo "Output files will be gzipped."
+  EXT='.'${2,,}
+fi
 base=${FILES%/*}
 for f in $FILES; do
 sample_name=${f##*/}
 sample_name=${sample_name%%_*}
 out_dir=$base/$sample_name
-if [ -d "$out_dir" ]
-then
-  echo "Directory \"$base/$sample_name\" exists."
-  exit
-else
-  mkdir "$out_dir"
-  fi_fp=$out_dir/$sample_name'_fp.fastq.gz'
-  fi_rp=$out_dir/$sample_name'_rp.fastq.gz'
-  fi_fu=$out_dir/$sample_name'_fu.fastq.gz'
-  fi_ru=$out_dir/$sample_name'_ru.fastq.gz'
+if [ -d "$out_dir" ]; then
+  echo "Directory \"$base/$sample_name\" removed."
+  rm -r $base/$sample_name
 fi
-echo "Processing: $sample_name"
-wait;trimmomatic PE -threads 8 -phred33 -quiet "$f" "${f/R1/R2}" $fi_fp $fi_fu \
-$fi_rp $fi_ru SLIDINGWINDOW:4:15 MINLEN:36
+mkdir "$out_dir"
+fi_out=$out_dir/$sample_name'.fastq'${EXT}
+echo "Trimming: $sample_name"
+wait;trimmomatic PE -threads 8 -phred33 -quiet -basein "$f" -baseout \
+$fi_out -summary $out_dir/'summary.log'  SLIDINGWINDOW:4:15 MINLEN:75
+cat $out_dir/$sample_name* >> $out_dir/'__'$sample_name'.fastq'
+rm $out_dir/$sample_name*
+$HOME/software/$usearch -fastx_uniques $out_dir/'__'$sample_name'.fastq' \
+-fastaout $out_dir/uniques.fasta -sizeout -relabel Uniq -strand both &>/dev/null
 done
