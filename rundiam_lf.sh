@@ -22,17 +22,23 @@ if [ -d "$out_dir" ]; then
 fi
 mkdir "$out_dir"
 fi_out=$out_dir/$sample_name'.fastq'${EXT}
-echo "Trimming: $sample_name"
+echo "Trimming [Trimmomatic]: $sample_name"
+#TRIMMOMATIC
 wait;trimmomatic PE -threads 8 -phred33 -quiet -basein "$f" -baseout \
 $fi_out -summary $out_dir/'summary.log'  SLIDINGWINDOW:4:15 MINLEN:75
 cat $out_dir/$sample_name* >> $out_dir/'__'$sample_name'.fastq'
 rm $out_dir/$sample_name*
-$HOME/software/$usearch -fastx_uniques $out_dir/'__'$sample_name'.fastq' \
+echo "Dereplicating [Usearch]: $sample_name"
+#USEARCH
+wait;$HOME/software/$usearch -fastx_uniques $out_dir/'__'$sample_name'.fastq' \
 -fastaout $out_dir/$sample_name'_uq.fasta' -sizeout \
 -relabel Uniq -strand both &>/dev/null
 rm $out_dir/'__'$sample_name'.fastq'
-gzip $out_dir/$sample_name'_uq.fasta'
+wait;gzip $out_dir/$sample_name'_uq.fasta'
 diamin=$out_dir/$sample_name'_uq.fasta.gz'
-diamond blastx -d /ssd2/diamondDB/nr -q $diamin -o $out_dir/$sample_name'.daa'\
- --max-target-seqs 5 --evalue 1E-5 --outfmt 102 -b1 -c1 --compress 1;wait
+echo "Blasting [Diamond]: $sample_name"
+#DIAMOND
+wait;diamond blastx -d $base/test -q $diamin -o $out_dir/$sample_name'.daa'\
+ --max-target-seqs 5 --evalue 1E-5 --outfmt 102 -b1 -c1 --compress 1\
+ &>/dev/null
 done
