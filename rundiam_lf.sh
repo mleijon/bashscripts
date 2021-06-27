@@ -39,6 +39,10 @@ diamin=$out_dir/$sample_name'_uq.fasta.gz'
 echo "Blasting [Diamond]: $sample_name"
 #DIAMOND
 wait;diamond blastx -d $base/test -q $diamin -o $out_dir/$sample_name'.daa'\
- --max-target-seqs 5 --evalue 1E-5 --outfmt 102 -b1 -c1 --compress 1\
+ --max-target-seqs 5 --evalue 1E-5 --outfmt 102 -b1 -c1 --compress 0\
  &>/dev/null
+ echo "Classifying [daa2spec.py]: $sample_name"
+#DAA2SPEC.PY
+wait;$HOME/software/daa2spec.py -f $out_dir/$sample_name'.daa' -s -v &>/dev/null
+gzip $out_dir/$sample_name'.daa'
 done
