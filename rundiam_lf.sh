@@ -1,17 +1,14 @@
 #!/bin/bash
 
 usearch='usearch11.0.667_i86linux64'
-FILES=$1'/*R1*.gz'
-if [ -z "$2" ]; then
-  echo "Output files will not be gzipped."
-elif [ ${2,,} != "gz" ]; then
-  echo "Unknown argument: $2"
-  exit 0
+
+if [ ! -d "$1" ]; then
+  echo "Please enter directory containing the sequencing data."
 else
-  echo "Output files will be gzipped."
-  EXT='.'${2,,}
+  FILES=$1'/*R1*.gz'
 fi
 base=${FILES%/*}
+base=$(dirname $base)'/'$(basename $base)
 for f in $FILES; do
 sample_name=${f##*/}
 sample_name=${sample_name%%_*}
