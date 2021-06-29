@@ -3,7 +3,9 @@
 usearch='usearch11.0.667_i86linux64'
 
 if [ ! -d "$1" ]; then
-  echo "Please enter directory containing the sequencing data."
+  echo "Please enter the full path to the directory containing the sequencing\
+   data as argument."
+  exit 0
 else
   FILES=$1'/*R1*.gz'
 fi
@@ -27,7 +29,7 @@ cat $out_dir/$sample_name* >> $out_dir/'__'$sample_name'.fastq'
 rm $out_dir/$sample_name*
 echo "Dereplicating [Usearch]: $sample_name"
 #USEARCH
-wait;$HOME/software/$usearch -fastx_uniques $out_dir/'__'$sample_name'.fastq' \
+wait;$usearch -fastx_uniques $out_dir/'__'$sample_name'.fastq' \
 -fastaout $out_dir/$sample_name'_uq.fasta' -sizeout \
 -relabel Uniq -strand both &>/dev/null
 rm $out_dir/'__'$sample_name'.fastq'
@@ -40,6 +42,6 @@ wait;diamond blastx -d $base/test -q $diamin -o $out_dir/$sample_name'.daa'\
  &>/dev/null
  echo "Classifying [daa2spec.py]: $sample_name"
 #DAA2SPEC.PY
-wait;$HOME/software/daa2spec.py -f $out_dir/$sample_name'.daa' -s -v &>/dev/null
+wait;daa2spec.py -f $out_dir/$sample_name'.daa' -s -v &>/dev/null
 gzip $out_dir/$sample_name'.daa'
 done
