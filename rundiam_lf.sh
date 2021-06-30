@@ -24,12 +24,12 @@ fi_out=$out_dir/$sample_name'.fastq'${EXT}
 echo "Trimming [Trimmomatic]: $sample_name"
 #TRIMMOMATIC
 wait;trimmomatic PE -threads 8 -phred33 -quiet -basein "$f" -baseout \
-""$fi_out"" -summary "$out_dir"/'summary.log'  SLIDINGWINDOW:4:15 MINLEN:75
+"$fi_out" -summary "$out_dir"/'summary.log'  SLIDINGWINDOW:4:15 MINLEN:75
 cat "$out_dir/$sample_name"* >> "$out_dir"/'__'"$sample_name"'.fastq'
 rm "$out_dir"/"$sample_name"*
 echo "Dereplicating [Usearch]: $sample_name"
 #USEARCH
-wait;$usearch -fastx_uniques \
+wait;"$HOME"/Software/$usearch -fastx_uniques \
 "$out_dir"/'__'"$sample_name"'.fastq' \
 -fastaout "$out_dir/$sample_name"'_uq.fasta' -sizeout -relabel Uniq \
 -strand both &>/dev/null
@@ -38,11 +38,11 @@ wait;gzip "$out_dir/$sample_name"'_uq.fasta'
 diamin=$out_dir/$sample_name'_uq.fasta.gz'
 echo "Blasting [Diamond]: $sample_name"
 #DIAMOND
-wait;diamond blastx -d /media/micke/7B9D13A66FF9DFB8/test/test -q "$diamin" \
+wait;diamond blastx -d /ssd2/diamondDB/nr -q "$diamin" \
 -o "$out_dir/$sample_name"'.daa' --max-target-seqs 5 --evalue 1E-5 \
---outfmt 102 -b1 -c1 --compress 0 &>/dev/null
+--outfmt 102 -b10 -c1 --compress 0 &>/dev/null
 echo "Classifying [daa2spec.py]: $sample_name"
 #DAA2SPEC.PY
-wait;daa2spec.py -f "$out_dir/$sample_name"'.daa' -s -v &>/dev/null
+wait;"$HOME"/Software/daa2spec.py -f "$out_dir/$sample_name"'.daa' -b -s -v &>/dev/null
 gzip "$out_dir/$sample_name"'.daa'
 done
