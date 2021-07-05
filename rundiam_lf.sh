@@ -20,7 +20,7 @@ if [ -d "$out_dir" ]; then
   rm -r "${base:?}/${sample_name:?}"
 fi
 mkdir "$out_dir"
-fi_out=$out_dir/$sample_name'.fastq'${EXT}
+fi_out=$out_dir/$sample_name'.fastq'
 echo "Trimming [Trimmomatic]: $sample_name"
 #TRIMMOMATIC
 wait;trimmomatic PE -threads 8 -phred33 -quiet -basein "$f" -baseout \
