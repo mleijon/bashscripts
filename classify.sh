@@ -1,21 +1,30 @@
 #!/bin/bash
 
+shopt -s nocaseglob
+
+#######INPUT DATA CONTROL########
+max_size=${2:-50000000}
 if [ ! -d "$1" ]; then
   echo "Please enter the full path to the directory containing the sequencing\
-   data as argument."
+data as argument."
   exit 0
 else
-  FILES=$1'/*R1*.gz'
+  FILES=($1/*R1*.gz)
+  if [ ! -f ${FILES[0]} ]; then
+    echo "No sequence files in: $1"
+    exit
+  fi
+  dir=$(dirname "$FILES")
 fi
-dir=$(dirname "$FILES")
-for f in $FILES; do
-  base=$(basename "$f")
-  mkdir ${base%%_*}
-  nr_lines=$(gunzip -c $f|wc -l)
-  nr_reads=$((nr_lines/4))
-  file_size=$(wc -c $f)
-  file_size=${file_size% *}
-  max_size=${2:-10000000}
+if [[ "${2:0:-1}" =~ ^[+-]?[0-9]+$ ]]; then
+  :
+elif [ -z $2 ]; then
+  :
+else
+  echo "Input error: $2"
+  exit
+fi
+if [ ! -z $2 ]; then
   case ${2: -1} in
     G|g)
       max_size=$((1000000000*${2:0:-1}))
@@ -30,15 +39,45 @@ for f in $FILES; do
       exit
       ;;
   esac
+fi
+##################################
+
+for f in ${FILES[@]}; do
+  base=$(basename "$f")
+  nr_lines=$(gunzip -c $f|wc -l)
+  nr_reads=$((nr_lines/4))
+  file_size_fwd=$(wc -c $f)
+  file_size_fwd=${file_size_fwd% *}
+  if [ ! -f ${f/R1/R2} ]; then
+    echo "No reverse file: ${f/R1/R2}. Skipping this sample."
+    continue
+  fi
+  file_size_rev=$(wc -c ${f/R1/R2})
+  file_size_rev=${file_size_rev% *}
+  if [ $file_size_fwd -lt $file_size_rev ]; then
+    file_size=$file_size_rev
+  else
+    file_size=$file_size_fwd
+  fi
+
   if [ $file_size -le $max_size ]; then
-    echo "No splitting required. The file size of ${f##*/}\
-   is smaller than max_size."
-    exit
+    echo "No splitting required for: ${f/R1/R*}. Copying files..."
+    if [ -d $dir/${base%%_*} ]; then
+      rm -r $dir/${base%%_*}
+    fi
+    mkdir $dir/${base%%_*}
+    cp $f $dir/${base%%_*}
+    cp ${f/R1/R2} $dir/${base%%_*}
+    continue
   fi
   if [ ! $((file_size%max_size)) = '0' ]; then
     nr_files=$((file_size/max_size + 1))
   else
     nr_files=$((file_size/max_size))
+  fi
+  if [ $nr_files -gt 100 ]; then
+    echo "Too many splits: $nr_files"
+    exit
   fi
   split_size=$((4*(nr_reads/nr_files + nr_reads%nr_files)))
   as='_'${f#*_}
@@ -46,10 +85,15 @@ for f in $FILES; do
   ${f%%_*}'xxx'
   rev=${f/R1/R2}
   as='_'${rev#*_}
+  echo "splitting ${f/R1/R*}..."
   gunzip -c ${f/R1/R2}|split -l $split_size --additional-suffix=${as%.gz} - \
   ${rev%%_*}'xxx'
-  gzip *.fastq
-  mv *xxx* ${base%%_*}
+  if [ -d $dir/${base%%_*} ]; then
+    rm -r $dir/${base%%_*}
+  fi
+  mkdir $dir/${base%%_*}
+  gzip $dir/*.fastq
+  mv $dir/*xxx* $dir/${base%%_*}
 done
 
 
