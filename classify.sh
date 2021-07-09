@@ -16,7 +16,7 @@ else
   fi
   dir=$(dirname "$FILES")
 fi
-if [[ "${2:0:-1}" =~ ^[+-]?[0-9]+$ ]]; then
+if [[ "${2:0:-1}" =~ ^[0-9]+$ ]]; then
   :
 elif [ -z $2 ]; then
   :
@@ -44,6 +44,7 @@ fi
 
 for f in ${FILES[@]}; do
   base=$(basename "$f")
+  ext=${f##*.}
   nr_lines=$(gunzip -c $f|wc -l)
   nr_reads=$((nr_lines/4))
   file_size_fwd=$(wc -c $f)
@@ -70,23 +71,24 @@ for f in ${FILES[@]}; do
     cp ${f/R1/R2} $dir/${base%%_*}
     continue
   fi
-  if [ ! $((file_size%max_size)) = '0' ]; then
+
+  if [ ! $((file_size%max_size)) -eq 0 ]; then
     nr_files=$((file_size/max_size + 1))
   else
     nr_files=$((file_size/max_size))
   fi
   if [ $nr_files -gt 100 ]; then
-    echo "Too many splits: $nr_files"
+    echo "Too many splits: $nr_files (maximum: 100)"
     exit
   fi
   split_size=$((4*(nr_reads/nr_files + nr_reads%nr_files)))
   as='_'${f#*_}
-  gunzip -c $f|split -l $split_size --additional-suffix=${as%.gz} - \
+  gunzip -c $f|split -l $split_size --additional-suffix=${as%.$ext} - \
   ${f%%_*}'xxx'
   rev=${f/R1/R2}
   as='_'${rev#*_}
   echo "splitting ${f/R1/R*}..."
-  gunzip -c ${f/R1/R2}|split -l $split_size --additional-suffix=${as%.gz} - \
+  gunzip -c ${f/R1/R2}|split -l $split_size --additional-suffix=${as%.$ext} - \
   ${rev%%_*}'xxx'
   if [ -d $dir/${base%%_*} ]; then
     rm -r $dir/${base%%_*}
@@ -94,6 +96,7 @@ for f in ${FILES[@]}; do
   mkdir $dir/${base%%_*}
   gzip $dir/*.fastq
   mv $dir/*xxx* $dir/${base%%_*}
+  wait;/home/micke/PycharmProjects/bashscripts/rundiam_lf.sh $dir/${base%%_*}
 done
 
 
