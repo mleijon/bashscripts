@@ -1,0 +1,21 @@
+#!/bin/bash
+
+FILES="./dmnd/*.daa"
+
+for f in $FILES; do
+  outname=${f##*dmnd/}
+  outname=${outname%.daa*}
+  awk -v FS='\t' '{if ($6 == "Viruses") {gsub(/ /,"_");print $8; print ">"$1":"$5":"$8"\n"$2}}' > \
+  ./dmnd/"$outname"_viruses.fa ./dmnd/"$outname".daa
+  awk -v FS='\t' '{if ($6 == "Eukaryota") {gsub(/ /,"_");print ">"$1":"$5":"$8"\n"$2}}' > \
+  ./dmnd/"$outname"_eukaryota.fa ./dmnd/"$outname".daa
+  awk -v FS='\t' '{if ($6 == "Bacteria") {gsub(/ /,"_");print ">"$1":"$5":"$8"\n"$2}}' > \
+  ./dmnd/"$outname"_bacteria.fa ./dmnd/"$outname".daa
+  awk -v FS='\t' '{if (!($6 == "Viruses") && !($6 =="Eukaryota") && !($6=="Bacteria"))
+  {gsub(/ /,"_");print ">"$1":"$5":"$8"\n"$2}}' > ./dmnd/"$outname"_other.fa ./dmnd/"$outname".daa
+done
+FILES="./dmnd/*.fa"
+for f in $FILES; do
+  sed 's/;:/;/' "$f" > "$f".tmp
+  mv "$f".tmp "$f"
+done
