@@ -22,6 +22,7 @@ Help()
    echo "# -e     Extract a number (arg. 2) of sequence records from the input fasta file (arg. 1)   #"
    echo "#############################################################################################"
    echo
+   read -n 1 -s
 }
 
 split_file()
@@ -34,7 +35,7 @@ split_file()
    else
       prefix=$3
    fi
-   for f in $PWD/"$prefix"*;do
+   for f in "$PWD/""$prefix"*;do
      rm -f "$f"
    done
    rec_cnt=$(grep -c '>' "$1")
