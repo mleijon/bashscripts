@@ -1,4 +1,4 @@
-#!/bin/bash
+!/bin/bash
 
 FILES="$PWD/*.$1"
 nr=0

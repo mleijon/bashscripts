@@ -1,9 +1,0 @@
-#!/bin/bash
-
-FILES="/home/decypher/micke/data/clinf/reindeer/*/*.fa"
-for f in $FILES; do
-    name=${f/fa/blastn}
-    dc_run -parameters /home/decypher/micke/tera-blastn-ml -query $f -database nt > $name;wait
-    gzip $f;wait
-    gzip $name;wait
-done
