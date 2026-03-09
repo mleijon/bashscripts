@@ -1,6 +1,5 @@
 #!/bin/bash
 # Unified script for NCBI Clustered NR download and DIAMOND build
-
 set -ueo pipefail
 
 # --- CONFIGURATION ---
@@ -38,22 +37,27 @@ echo "Downloading Taxonomy and version metadata..."
 
 # Helper function for downloads with MD5 verification
 download_verify() {
-    local file_path=$1
+    local base_url=$1
+    local file_path=$2
     local base_name=${file_path##*/}
+
+    # Remove trailing slash from base_url if present
+    local clean_base_url=${base_url%/}
+
     echo "Downloading: $base_name"
-    wget -c "${TAXONOMY_PATH}/${file_path}"
-    wget -q "${TAXONOMY_PATH}/${file_path}.md5"
+    wget -c "${clean_base_url}/${file_path}"
+    wget -q "${clean_base_url}/${file_path}.md5"
     echo "Verifying $base_name..."
     md5sum -c "$base_name.md5"
 }
 
-download_verify "accession2taxid/prot.accession2taxid.FULL.gz"
-download_verify "taxdump.tar.gz"
+download_verify "$TAXONOMY_PATH" "accession2taxid/prot.accession2taxid.FULL.gz"
+download_verify "$TAXONOMY_PATH" "taxdump.tar.gz"
 
 # 4. Download Clustered NR Volumes
 echo "Starting download of $DB_NAME volumes..."
 for i in $(seq -f "%02g" 0 $MAX_VOL); do
-    wget -nv -c "${NRCLUST_PATH}${DB_NAME}.${i}.tar.gz"
+    download_verify "$NRCLUST_PATH" "${DB_NAME}.${i}.tar.gz"
 done
 
 # 5. Extraction
