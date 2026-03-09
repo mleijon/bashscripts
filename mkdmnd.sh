@@ -1,6 +1,6 @@
 #!/bin/bash
 # Unified script for NCBI Clustered NR download and DIAMOND build
-# Combines taxonomy tracking from mkdmnddb.sh with V2 performance
+
 set -ueo pipefail
 
 # --- CONFIGURATION ---
@@ -12,7 +12,6 @@ MAX_VOL=86
 THREADS=72
 CONDA_ENV="bio-db"
 
-# Activate environment early
 echo "Activating environment..."
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate "$CONDA_ENV"
@@ -28,7 +27,7 @@ DMND_DB_NAME="${DB_NAME}_${YEAR}_${GENBANK_VERSION}"
 echo "Current GenBank version is $GENBANK_VERSION"
 echo "Target database name will be ${DMND_DB_NAME}.dmnd"
 
-# 2. Clean up old files (Safety logic adapted from mkdmnddb.sh)
+# 2. Clean up old files
 if [ -f "${DMND_DB_NAME}.dmnd" ]; then
     echo "Found existing database. Cleaning up old resources..."
     rm -f "${DMND_DB_NAME}.dmnd" nodes.dmp names.dmp taxdump.tar.gz prot.accession2taxid.FULL.gz
@@ -64,10 +63,9 @@ tar -xzvf taxdump.tar.gz nodes.dmp names.dmp
 echo "Extracting database volumes in parallel..."
 ls ${DB_NAME}.*.tar.gz | xargs -n 1 -P 16 tar -xzvf
 
-# 6. Build DIAMOND DB (Piped method from mkdmnddb_v2.sh)
+# 6. Build DIAMOND DB
 echo "Building DIAMOND database..."
 
-# Piping from blastdbcmd saves ~500GB of disk space
 blastdbcmd -db "$DB_NAME" -entry all | \
 diamond makedb --in - -d "$DMND_DB_NAME" \
   --taxonmap prot.accession2taxid.FULL.gz \
