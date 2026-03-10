@@ -54,6 +54,22 @@ while getopts "p:b:c:r:x:h" opt; do
     esac
 done
 
+# --- INPUT DATA CHECK ---
+# 1. Check if the directory exists
+if [[ ! -d "./fa" ]]; then
+    echo "❌ Error: Input directory './fa' not found."
+    echo "Please create a folder named 'fa' and place your raw reads there."
+    exit 1
+fi
+
+# 2. Check if the directory contains .fastq or .fastq.gz files
+# We use find to safely check for files without triggering 'pipefail' errors
+if [[ -z $(find ./fa -maxdepth 1 \( -name "*.fastq" -o -name "*.fastq.gz" \) -print -quit) ]]; then
+    echo "❌ Error: No .fastq or .fastq.gz files found in './fa'."
+    echo "Please ensure your raw sequence reads are in the 'fa' folder."
+    exit 1
+fi
+
 # --- DIRECTORY SETUP ---
 TRIM_DIR="./trimmed"
 ASM_DIR="./megahit"
