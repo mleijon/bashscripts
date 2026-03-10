@@ -14,6 +14,9 @@ USEARCH_BIN="/ssd2/classify/usearch11.0.667_i86linux64"
 
 # Resources
 THREADS=$(grep -c 'processor' /proc/cpuinfo)
+# Specific thread cap for Trimmomatic to avoid Java memory issues
+TRIM_THREADS=$THREADS
+if [ "$TRIM_THREADS" -gt 8 ]; then TRIM_THREADS=8; fi
 MEM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 MEM_GB=$((MEM_KB / 1024 / 1024))
 SPADES_MEM=$((MEM_GB * 8 / 10))  # Default: 80% of system RAM
@@ -67,7 +70,7 @@ mkdir -p "$TRIM_DIR" "$DMND_DIR"
 # 1. TRIMMING (TRIMMOMATIC)
 # ==============================================================================
 if [[ "$RAW_MODE" == "n" ]]; then
-    echo "✂️ Starting Trimmomatic..."
+    echo "✂️ Starting Trimmomatic (Threads capped at $TRIM_THREADS)..."
     for f1 in ./fa/*_R1_*.fastq.gz; do
         [ -e "$f1" ] || continue
 
@@ -80,7 +83,7 @@ if [[ "$RAW_MODE" == "n" ]]; then
         fi
 
         echo "🧬 Trimming: $sample_name"
-        trimmomatic PE -threads "$THREADS" -phred33 -quiet \
+        trimmomatic PE -threads "$TRIM_THREADS" -phred33 -quiet \
             "$f1" "${f1/_R1_/_R2_}" \
             "${out_prefix}_1P.fastq.gz" "${out_prefix}_1U.fastq.gz" \
             "${out_prefix}_2P.fastq.gz" "${out_prefix}_2U.fastq.gz" \

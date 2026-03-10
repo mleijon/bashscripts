@@ -3,7 +3,9 @@
 set -ueo pipefail
 
 # --- CONFIGURATION ---
-THREADS=72              # Adjusted for your high-performance machine
+THREADS=$(grep -c 'processor' /proc/cpuinfo)
+# Safety cap for Trimmomatic
+TRIM_THREADS=$(( THREADS > 8 ? 8 : THREADS ))
 TRIMMED_DIR="./trimmed"  # Where your cleaned FASTQ files live
 ASM_DIR="./megahit"      # Where the assemblies will be saved
 
