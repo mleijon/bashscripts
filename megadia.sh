@@ -54,19 +54,24 @@ while getopts "p:b:c:r:x:h" opt; do
     esac
 done
 
-# --- INPUT DATA CHECK ---
-# 1. Check if the directory exists
+# --- VALIDATION ---
+# 1. Check if the Diamond database exists
+if [[ ! -f "${DIAMOND_DB}.dmnd" ]]; then
+    echo "❌ Error: Diamond database file '${DIAMOND_DB}.dmnd' not found."
+    echo "Please ensure the path is correct and the database is built."
+    exit 1
+fi
+
+# 2. Check if the input directory exists
 if [[ ! -d "./fa" ]]; then
     echo "❌ Error: Input directory './fa' not found."
     echo "Please create a folder named 'fa' and place your raw reads there."
     exit 1
 fi
 
-# 2. Check if the directory contains .fastq or .fastq.gz files
-# We use find to safely check for files without triggering 'pipefail' errors
+# 3. Check for .fastq or .fastq.gz files in ./fa
 if [[ -z $(find ./fa -maxdepth 1 \( -name "*.fastq" -o -name "*.fastq.gz" \) -print -quit) ]]; then
     echo "❌ Error: No .fastq or .fastq.gz files found in './fa'."
-    echo "Please ensure your raw sequence reads are in the 'fa' folder."
     exit 1
 fi
 
