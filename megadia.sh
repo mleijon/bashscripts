@@ -4,7 +4,7 @@ set -ueo pipefail
 
 # ==============================================================================
 # MEGADIA PIPELINE V4 (Optimized, Modular & Environment-Aware)
-# Trimming -> Assembly (MEGAHIT) -> Classification (Diamond)
+# Trimming (Trimmomatic) -> Assembly (MEGAHIT) -> Classification (Diamond)
 # ==============================================================================
 
 # --- CONDA ENVIRONMENT CHECK ---
@@ -17,7 +17,7 @@ fi
 
 # --- DEFAULT CONFIGURATION ---
 # Databases and Tool Paths
-DIAMOND_DB="/ssd2/classify/nr"
+DIAMOND_DB="/mnt/micke_ssd/resources/diamond_db/nr_cluster_seq_2026"
 
 # Resources
 THREADS=$(grep -c 'processor' /proc/cpuinfo)

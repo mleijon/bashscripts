@@ -4,7 +4,7 @@ set -ueo pipefail
 
 # ==============================================================================
 # SPADIA PIPELINE V4 (Optimized, Modular & Environment-Aware)
-# Trimming -> Assembly (SPAdes) -> Classification (Diamond)
+# Trimming (Trimmomatic) -> Assembly (SPAdes) -> Classification (Diamond)
 # ==============================================================================
 
 # --- CONDA ENVIRONMENT CHECK ---
@@ -15,7 +15,7 @@ if [[ "${CONDA_DEFAULT_ENV:-}" != "spadia" ]]; then
 fi
 
 # --- DEFAULT CONFIGURATION ---
-DIAMOND_DB="/ssd2/classify/nr"
+DIAMOND_DB="/mnt/micke_ssd/resources/diamond_db/nr_cluster_seq_2026"
 THREADS=$(grep -c 'processor' /proc/cpuinfo)
 # Specific thread cap for Trimmomatic to avoid Java memory issues
 TRIM_THREADS=$(( THREADS > 8 ? 8 : THREADS ))
