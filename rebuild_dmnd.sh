@@ -2,19 +2,21 @@
 # Script to modify nodes.dmp and rebuild DIAMOND DB without downloading
 set -ueo pipefail
 
-# --- CONFIGURATION (Matching mkdmnd.sh) ---
+# --- CONFIGURATION ---
 DB_NAME="nr_clst"
 DEST_DIR="/mnt/micke_ssd/resources"
 THREADS=72
-CONDA_ENV="bio-db"
+CONDA_ENV="megadia"  # Use the active megadia environment
 
-echo "Activating environment..."
-source "$(conda info --base)/etc/profile.d/conda.sh"
+echo "Activating environment: $CONDA_ENV..."
+# Robust way to find conda/mamba and activate
+CONDA_BASE=$(conda info --base)
+source "$CONDA_BASE/etc/profile.d/conda.sh"
 conda activate "$CONDA_ENV"
 
 cd "$DEST_DIR"
 
-# 1. Determine Target Database Name (Matching your mkdmnd.sh logic)
+# 1. Determine Target Database Name
 if [ -f "GB_Release_Number" ]; then
     GENBANK_VERSION=$(< GB_Release_Number)
 else
@@ -25,22 +27,17 @@ fi
 
 YEAR=$(date +%Y)
 DMND_DB_NAME="${DB_NAME}_${YEAR}_${GENBANK_VERSION}"
-
 echo "Targeting database: ${DMND_DB_NAME}.dmnd"
 
 # 2. Modify nodes.dmp for DIAMOND compatibility
-# We use the literal tab characters inside the sed command
-echo "Normalizing ranks in nodes.dmp..."
+echo "Normalizing ranks in nodes.dmp for Viruses and Domains..."
+# Replace 'domain' and 'acellular root' with 'superkingdom'
+# Using [[:space:]] to safely handle tabs or spaces in nodes.dmp
+sed -i 's/|[[:space:]]domain[[:space:]]|/|[[:space:]]superkingdom[[:space:]]|/g' nodes.dmp
+sed -i 's/|[[:space:]]acellular root[[:space:]]|/|[[:space:]]superkingdom[[:space:]]|/g' nodes.dmp
 
-# Change 'domain' to 'superkingdom'
-sed -i 's/|\tdomain\t|/|\tsuperkingdom\t|/g' nodes.dmp
-
-# Change 'acellular root' to 'superkingdom'
-sed -i 's/|\tacellular root\t|/|\tsuperkingdom\t|/g' nodes.dmp
-
-# 3. Step 6: Build DIAMOND DB
-echo "Building DIAMOND database (Step 6)..."
-
+# 3. Build DIAMOND DB
+echo "Building DIAMOND database..."
 blastdbcmd -db "$DB_NAME" -entry all | \
 diamond makedb --in - -d "$DMND_DB_NAME" \
   --taxonmap prot.accession2taxid.FULL.gz \
@@ -48,4 +45,4 @@ diamond makedb --in - -d "$DMND_DB_NAME" \
   --taxonnames names.dmp \
   --threads "$THREADS"
 
-echo "Rebuild complete. Database is at ${DEST_DIR}/${DMND_DB_NAME}.dmnd"
+echo "Build complete. Database is at ${DEST_DIR}/${DMND_DB_NAME}.dmnd"
