@@ -2,7 +2,7 @@
 # Script to modify nodes.dmp and rebuild DIAMOND DB without downloading
 set -ueo pipefail
 
-# --- CONFIGURATION (Matching your mkdmnd.sh) ---
+# --- CONFIGURATION (Matching mkdmnd.sh) ---
 DB_NAME="nr_clst"
 DEST_DIR="/mnt/micke_ssd/resources"
 THREADS=72
