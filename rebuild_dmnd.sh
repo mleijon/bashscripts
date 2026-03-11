@@ -3,7 +3,7 @@
 set -ueo pipefail
 
 # --- CONFIGURATION ---
-DB_NAME="nr_clst"
+DB_NAME="nr_cluster_seq"
 DEST_DIR="/mnt/micke_ssd/resources"
 THREADS=72
 CONDA_ENV="megadia"  # Use the active megadia environment
