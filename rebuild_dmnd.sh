@@ -33,8 +33,9 @@ echo "Targeting database: ${DMND_DB_NAME}.dmnd"
 echo "Normalizing ranks in nodes.dmp for Viruses and Domains..."
 # Replace 'domain' and 'acellular root' with 'superkingdom'
 # Using [[:space:]] to safely handle tabs or spaces in nodes.dmp
-sed -i 's/|[[:space:]]domain[[:space:]]|/|[[:space:]]superkingdom[[:space:]]|/g' nodes.dmp
-sed -i 's/|[[:space:]]acellular root[[:space:]]|/|[[:space:]]superkingdom[[:space:]]|/g' nodes.dmp
+# Corrected: Using \t to preserve the tab-delimited format required by Diamond
+sed -i 's/\t|\tdomain\t|/\t|\tsuperkingdom\t|/g' nodes.dmp
+sed -i 's/\t|\tacellular root\t|/\t|\tsuperkingdom\t|/g' nodes.dmpls
 
 # 3. Build DIAMOND DB
 echo "Building DIAMOND database..."
