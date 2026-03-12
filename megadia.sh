@@ -17,7 +17,7 @@ fi
 
 # --- DEFAULT CONFIGURATION ---
 # Databases and Tool Paths
-DIAMOND_DB="/mnt/micke_ssd/resources/nr_cluster_seq_2026"
+DIAMOND_DB="/mnt/micke_ssd/resources/nr_cluster_seq_2026_270.0"
 
 # Resources
 THREADS=$(grep -c 'processor' /proc/cpuinfo)
