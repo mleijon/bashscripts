@@ -35,7 +35,7 @@ echo "Normalizing ranks in nodes.dmp for Viruses and Domains..."
 # Using [[:space:]] to safely handle tabs or spaces in nodes.dmp
 # Corrected: Using \t to preserve the tab-delimited format required by Diamond
 sed -i 's/\t|\tdomain\t|/\t|\tsuperkingdom\t|/g' nodes.dmp
-sed -i 's/\t|\tacellular root\t|/\t|\tsuperkingdom\t|/g' nodes.dmpls
+sed -i 's/\t|\tacellular root\t|/\t|\tsuperkingdom\t|/g' nodes.dmp
 
 # 3. Build DIAMOND DB
 echo "Building DIAMOND database..."
