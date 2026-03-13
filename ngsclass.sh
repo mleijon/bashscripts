@@ -5,7 +5,7 @@ set -ueo pipefail
 # NGSCLASS.SH (v1.0)
 # Modular NGS Classification Pipeline
 # Options: Trimming or Dereplication | Megahit Assembly OR SPAdes Assembly |->
-# Diamond TSV
+# Diamond TSV -> Sorting Bacteria, Eukaryota, Viruses & Other
 # ==============================================================================
 
 # --- 1. Global Configuration ---
