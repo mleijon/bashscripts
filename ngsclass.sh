@@ -154,7 +154,7 @@ for f in "${INPUTS[@]}"; do
         echo "🔍 Classifying: $sample_name"
         # Updated --outfmt to include sphylums for dmnd2class.sh compatibility
         diamond blastx -d "$DIAMOND_DB" -q "$f" -o "$tsv_out" \
-            --max-target-seqs 1 --evalue 1E-5 -b "$DIAMOND_BLOCK" -c "$DIAMOND_CHUNKS" -t \
+            --max-target-seqs 1 --evalue 1E-5 -b "$DIAMOND_BLOCK" -c "$DIAMOND_CHUNKS" \
             --outfmt 6 qseqid full_qseq evalue staxids sscinames sskingdoms skingdoms sphylums
 
         for K in Viruses Eukaryota Bacteria; do
