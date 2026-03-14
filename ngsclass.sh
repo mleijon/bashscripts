@@ -128,8 +128,8 @@ if [[ "$RAW_MODE" == "n" ]]; then
         if [[ "$ASM_MODE" == "m" ]]; then
             if [[ ! -f "$out_dir/final.contigs.fa" ]]; then
                 echo "🧬 Megahit Assembling: $sample_id"
-                megahit -o "$out_dir" -1 "$f1p" -2 "${f1p/_1P/_2P}" -t "$THREADS" --continue\
-                2> "./log/""$samle_id.megahit.log"
+                megahit -o "$out_dir" -1 "$f1p" -2 "${f1p/_1P/_2P}" -t "$THREADS" --continue \
+                2> "./log/$samle_id"".megahit.log"
             fi
         else
             if [[ ! -f "$out_dir/contigs.fasta" ]]; then
