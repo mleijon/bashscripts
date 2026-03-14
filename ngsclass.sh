@@ -122,7 +122,8 @@ else
             "$USEARCH" -fastx_uniques "$temp_fq" \
                 -fastaout "$derep_f" \
                 -sizeout -relabel "${sample_name}_" \
-                -threads "$THREADS"
+                -threads "$THREADS" \
+                2>&1 > "./logs/$sample_id.usearch.log"
 
             # Immediate cleanup of the massive temp file
             rm "$temp_fq"
