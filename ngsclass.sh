@@ -110,7 +110,7 @@ else
         sample_name=$(basename "$f1" | sed 's/_L.*//')
         derep_f="$DERE_DIR/${sample_name}_derep.fa"
         if [[ ! -f "$derep_f" ]]; then
-            zcat "$f1" "${f1/_R1_/_R2_}" | "$USEARCH" -fastx_uniques - \
+            zcat "$f1" "${f1/_R1_/_R2_}" | "$USEARCH" -fastx_uniques /dev/stdin \
                 -fastaout "$derep_f" -sizeout -relabel "${sample_name}_" -threads "$THREADS"
         fi
     done
