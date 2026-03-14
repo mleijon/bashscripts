@@ -135,7 +135,8 @@ if [[ "$RAW_MODE" == "n" ]]; then
             if [[ ! -f "$out_dir/contigs.fasta" ]]; then
                 echo "🧬 SPAdes Assembling ($SPADES_FLAGS): $sample_id"
                 spades.py $SPADES_FLAGS -t "$THREADS" -m 450 \
-                    -1 "$f1p" -2 "${f1p/_1P/_2P}" -o "$out_dir"
+                    -1 "$f1p" -2 "${f1p/_1P/_2P}" -o "$out_dir" \
+                    2> "./logs/$sample_id.spades.log"
             fi
         fi
     done
@@ -163,7 +164,8 @@ for f in "${INPUTS[@]}"; do
         # Updated --outfmt to include sphylums for dmnd2class.sh compatibility
         diamond blastx -d "$DIAMOND_DB" -q "$f" -o "$tsv_out" \
             --max-target-seqs 1 --evalue 1E-5 -b "$DIAMOND_BLOCK" -c "$DIAMOND_CHUNKS" \
-            --outfmt 6 qseqid full_qseq evalue staxids sscinames sskingdoms skingdoms sphylums
+            --outfmt 6 qseqid full_qseq evalue staxids sscinames sskingdoms skingdoms sphylums \
+            2> "./logs/$sample_name.diamond.log"
 
         for K in Viruses Eukaryota Bacteria; do
             awk -v K="$K" -v FS='\t' '$6 == K { gsub(/ /,"_"); print ">"$1":"$5"\n"$2 }' "$tsv_out" \
