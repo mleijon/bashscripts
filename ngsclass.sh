@@ -104,16 +104,28 @@ if [[ "$RAW_MODE" == "n" ]]; then
         fi
     done
 else
-    echo "🌀 Mode: Raw Read Dereplication"
+    echo "🌀 Mode: Raw Read Dereplication (USEARCH)"
     for f1 in ./fa/*_R1_*.fastq.gz; do
         [ -e "$f1" ] || continue
         sample_name=$(basename "$f1" | sed 's/_L.*//')
         derep_f="$DERE_DIR/${sample_name}_derep.fa"
+
         if [[ ! -f "$derep_f" ]]; then
-           "$USEARCH" -fastx_uniques <(zcat "$f1" "${f1/_R1_/_R2_}") \
-          -fastaout "$derep_f" \
-          -sizeout -relabel "${sample_name}_" \
-          -threads "$THREADS"
+            echo "🧬 Dereplicating: $sample_name"
+
+            # Create a temporary uncompressed file
+            temp_fq="$DERE_DIR/${sample_name}_temp.fastq"
+
+            zcat "$f1" "${f1/_R1_/_R2_}" > "$temp_fq"
+
+            # Run USEARCH on the actual file
+            "$USEARCH" -fastx_uniques "$temp_fq" \
+                -fastaout "$derep_f" \
+                -sizeout -relabel "${sample_name}_" \
+                -threads "$THREADS"
+
+            # Immediate cleanup of the massive temp file
+            rm "$temp_fq"
         fi
     done
 fi
