@@ -77,7 +77,7 @@ done
 TRIM_DIR="./trimmed"
 ASM_DIR="./assembly"
 DERE_DIR="./dereplicated"
-mkdir -p $ASM_DIR" "$DMND_DIR" "./logs"
+mkdir -p "$ASM_DIR" "$DMND_DIR" "./logs"
 if [[ "$RAW_MODE" == "n" ]]; then
     mkdir -p "$TRIM_DIR"
 else
@@ -97,7 +97,7 @@ if [[ "$RAW_MODE" == "n" ]]; then
         out_p="$TRIM_DIR/${sample_name}"
         if [[ ! -f "${out_p}_1P.fastq.gz" ]]; then
             trimmomatic PE -threads "$TRIM_THREADS" -phred33 -quiet \
-                -summary ./logs/"${sample_name}"_trimmed.log "$f1" "${f1/_R1_/_R2_}" \
+                -summary "./logs/${sample_name}"_trimmed.log "$f1" "${f1/_R1_/_R2_}" \
                 "${out_p}_1P.fastq.gz" "${out_p}_1U.fastq.gz" \
                 "${out_p}_2P.fastq.gz" "${out_p}_2U.fastq.gz" \
                 SLIDINGWINDOW:4:15 MINLEN:75
@@ -129,7 +129,7 @@ if [[ "$RAW_MODE" == "n" ]]; then
             if [[ ! -f "$out_dir/final.contigs.fa" ]]; then
                 echo "🧬 Megahit Assembling: $sample_id"
                 megahit -o "$out_dir" -1 "$f1p" -2 "${f1p/_1P/_2P}" -t "$THREADS" --continue\
-                2>&1 | tee ./log/"$out_dir".megahit.log
+                2>&1 | tee "./log/$out_dir.megahit.log"
             fi
         else
             if [[ ! -f "$out_dir/contigs.fasta" ]]; then
