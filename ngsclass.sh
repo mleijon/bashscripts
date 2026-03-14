@@ -123,7 +123,7 @@ else
                 -fastaout "$derep_f" \
                 -sizeout -relabel "${sample_name}_" \
                 -threads "$THREADS" \
-                2>&1 > "./logs/$sample_name.usearch.log"
+                &> "./logs/$sample_name.usearch.log"
 
             # Immediate cleanup of the massive temp file
             rm "$temp_fq"
@@ -144,14 +144,14 @@ if [[ "$RAW_MODE" == "n" ]]; then
             if [[ ! -f "$out_dir/final.contigs.fa" ]]; then
                 echo "🧬 Megahit Assembling: $sample_id"
                 megahit -o "$out_dir" -1 "$f1p" -2 "${f1p/_1P/_2P}" -t "$THREADS" --continue \
-                2> "./logs/$sample_id.megahit.log"
+                    &> "./logs/$sample_id.megahit.log"
             fi
         else
             if [[ ! -f "$out_dir/contigs.fasta" ]]; then
                 echo "🧬 SPAdes Assembling ($SPADES_FLAGS): $sample_id"
                 spades.py $SPADES_FLAGS -t "$THREADS" -m 450 \
                     -1 "$f1p" -2 "${f1p/_1P/_2P}" -o "$out_dir" \
-                    2>&1 > "./logs/$sample_id.spades.log"
+                    &> "./logs/$sample_id.spades.log"
             fi
         fi
     done
@@ -180,7 +180,7 @@ for f in "${INPUTS[@]}"; do
         diamond blastx -d "$DIAMOND_DB" -q "$f" -o "$tsv_out" \
             --max-target-seqs 1 --evalue 1E-5 -b "$DIAMOND_BLOCK" -c "$DIAMOND_CHUNKS" \
             --outfmt 6 qseqid full_qseq evalue staxids sscinames sskingdoms skingdoms sphylums \
-            2> "./logs/$sample_name.diamond.log"
+            &> "./logs/$sample_name.diamond.log"
 
         for K in Viruses Eukaryota Bacteria; do
             awk -v K="$K" -v FS='\t' '$6 == K { gsub(/ /,"_"); print ">"$1":"$5"\n"$2 }' "$tsv_out" \
