@@ -90,7 +90,7 @@ if [[ "$RAW_MODE" == "n" ]]; then
         out_p="$TRIM_DIR/${sample_name}"
         if [[ ! -f "${out_p}_1P.fastq.gz" ]]; then
             trimmomatic PE -threads "$TRIM_THREADS" -phred33 -quiet \
-                -trimlog ./logs/"${sample_name}"_trimmed.log "$f1" "${f1/_R1_/_R2_}" \
+                -summary ./logs/"${sample_name}"_trimmed.log "$f1" "${f1/_R1_/_R2_}" \
                 "${out_p}_1P.fastq.gz" "${out_p}_1U.fastq.gz" \
                 "${out_p}_2P.fastq.gz" "${out_p}_2U.fastq.gz" \
                 SLIDINGWINDOW:4:15 MINLEN:75
