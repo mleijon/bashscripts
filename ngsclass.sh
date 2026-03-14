@@ -136,7 +136,7 @@ if [[ "$RAW_MODE" == "n" ]]; then
                 echo "🧬 SPAdes Assembling ($SPADES_FLAGS): $sample_id"
                 spades.py $SPADES_FLAGS -t "$THREADS" -m 450 \
                     -1 "$f1p" -2 "${f1p/_1P/_2P}" -o "$out_dir" \
-                    1> "./logs/$sample_id.spades.log"
+                    2>&1 > "./logs/$sample_id.spades.log"
             fi
         fi
     done
