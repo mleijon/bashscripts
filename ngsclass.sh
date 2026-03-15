@@ -2,8 +2,9 @@
 set -ueo pipefail
 
 # ==============================================================================
-# NGSCLASS.SH (v1.3)
-# Modular NGS Classification Pipeline - Updated for unzipped files & seqkit
+# NGSCLASS.SH (v1.5)
+# Modular NGS Classification Pipeline
+# Added: Unzipped support, Seqkit sorting, Bowtie2 Coverage, Restored Help info
 # ==============================================================================
 
 # --- CONDA ENVIRONMENT CHECK ---
@@ -39,11 +40,23 @@ Help() {
     echo "Options:"
     echo "  -x [y|n]    Dereplication mode (skip assembly). Default: $RAW_MODE"
     echo "  -a [m|s]    Assembly tool: (m)egahit or (s)pades. Default: $ASM_MODE"
-    echo "  -f [str]    SPAdes mode flags. Default: $SPADES_FLAGS"
+    echo "  -f [str]    SPAdes mode flags. Options include:"
+    echo "                --isolate       (High-coverage isolates)"
+    echo "                --sc            (Single-cell MDA data)"
+    echo "                --meta          (Metagenomic data)"
+    echo "                --rna           (Transcriptomic data)"
+    echo "                --plasmid       (Plasmid assembly from WGS)"
+    echo "                --metaviral     (Viral assembly from metagenomes)"
+    echo "                --metaplasmid   (Plasmid assembly from metagenomes)"
+    echo "                --rnaviral      (Viral RNA-Seq data)"
+    echo "                --bio           (Biosynthetic gene clusters)"
+    echo "                --corona        (SARS-CoV-2 data)"
+    echo "                --sewage        (Wastewater metagenomics)"
+    echo "              Default: $SPADES_FLAGS"
     echo "  -p [int]    Threads. Default: $THREADS"
     echo "  -b [int]    Diamond block size. Default: $DIAMOND_BLOCK"
     echo "  -c [int]    Diamond chunks. Default: $DIAMOND_CHUNKS"
-    echo "  -r [y|n]    Remove intermediate files. Default: $REMOVE_TEMP"
+    echo "  -r [y|n]    Remove intermediate files (including BAMs). Default: $REMOVE_TEMP"
     echo "  -h          Show this help"
 }
 
@@ -75,31 +88,34 @@ fi
 # ==============================================================================
 # SECTION 1: TRIMMING OR DEREPLICATION
 # ==============================================================================
-# Updated glob to find .fastq and .fastq.gz
-for f1 in ./fa/*_R1_*.fastq*; do
-    [ -e "$f1" ] || continue
-
-    f2="${f1/_R1_/_R2_}"
-    sample_name=$(basename "$f1" | sed 's/_L.*//')
-
-    if [[ "$RAW_MODE" == "n" ]]; then
+if [[ "$RAW_MODE" == "n" ]]; then
+    echo "✂️ Mode: Trimming (Preparing for Assembly)"
+    for f1 in ./fa/*_R1_*.fastq*; do
+        [ -e "$f1" ] || continue
+        f2="${f1/_R1_/_R2_}"
+        sample_name=$(basename "$f1" | sed 's/_L.*//')
         out_p="$TRIM_DIR/${sample_name}"
         if [[ ! -f "${out_p}_1P.fastq.gz" ]]; then
-            echo "✂️ Trimming: $sample_name"
-            # Trimmomatic automatically detects if input is gzipped or not
+            echo "   Processing: $sample_name"
             trimmomatic PE -threads "$TRIM_THREADS" -phred33 -quiet \
                 -summary "./logs/${sample_name}"_trimmed.log "$f1" "$f2" \
                 "${out_p}_1P.fastq.gz" "${out_p}_1U.fastq.gz" \
                 "${out_p}_2P.fastq.gz" "${out_p}_2U.fastq.gz" \
                 SLIDINGWINDOW:4:15 MINLEN:75
         fi
-    else
+    done
+else
+    echo "🌀 Mode: Raw Read Dereplication (USEARCH)"
+    for f1 in ./fa/*_R1_*.fastq*; do
+        [ -e "$f1" ] || continue
+        f2="${f1/_R1_/_R2_}"
+        sample_name=$(basename "$f1" | sed 's/_L.*//')
         derep_f="$DERE_DIR/${sample_name}_derep.fa"
-        if [[ ! -f "$derep_f" ]]; then
-            echo "🌀 Dereplicating: $sample_name"
-            temp_fq="$DERE_DIR/${sample_name}_temp.fastq"
 
-            # gzip -dc -f works like cat for plain text and zcat for .gz
+        if [[ ! -f "$derep_f" ]]; then
+            echo "   Dereplicating: $sample_name"
+            temp_fq="$DERE_DIR/${sample_name}_temp.fastq"
+            # gzip -dc -f handles both .gz and uncompressed .fastq
             gzip -dc -f "$f1" "$f2" > "$temp_fq"
 
             "$USEARCH" -fastx_uniques "$temp_fq" \
@@ -110,39 +126,55 @@ for f1 in ./fa/*_R1_*.fastq*; do
 
             rm "$temp_fq"
         fi
-    fi
-done
+    done
+fi
 
 # ==============================================================================
-# SECTION 2: ASSEMBLY
+# SECTION 2: ASSEMBLY & COVERAGE
 # ==============================================================================
 if [[ "$RAW_MODE" == "n" ]]; then
     for f1p in "$TRIM_DIR"/*_1P.fastq.gz; do
         [ -e "$f1p" ] || continue
         sample_id=$(basename "$f1p" _1P.fastq.gz)
+        f2p="${f1p/_1P.fastq.gz/_2P.fastq.gz}"
         out_dir="$ASM_DIR/$sample_id"
 
+        # 1. Assembly
         if [[ "$ASM_MODE" == "m" ]]; then
-            if [[ ! -f "$out_dir/final.contigs.fa" ]]; then
+            target_fa="$out_dir/final.contigs.fa"
+            if [[ ! -f "$target_fa" ]]; then
                 echo "🧬 Megahit Assembling: $sample_id"
-                megahit -o "$out_dir" -1 "$f1p" -2 "${f1p/_1P/_2P}" -t "$THREADS" --continue \
-                    &> "./logs/$sample_id.megahit.log"
+                megahit -o "$out_dir" -1 "$f1p" -2 "$f2p" -t "$THREADS" --continue \
+                &> "./logs/$sample_id.megahit.log"
 
-                # --- SORTING WITH SEQKIT ---
-                if [[ -f "$out_dir/final.contigs.fa" ]]; then
-                    echo "📏 Sorting contigs by length: $sample_id"
-                    seqkit sort --by-length --reverse "$out_dir/final.contigs.fa" \
-                        -o "$out_dir/final.contigs.sorted.fa"
-                    mv "$out_dir/final.contigs.sorted.fa" "$out_dir/final.contigs.fa"
+                # Sort contigs by decreasing length using seqkit
+                if [[ -f "$target_fa" ]]; then
+                    echo "📏 Sorting contigs: $sample_id"
+                    seqkit sort --by-length --reverse "$target_fa" -o "${target_fa}.tmp"
+                    mv "${target_fa}.tmp" "$target_fa"
                 fi
             fi
         else
-            if [[ ! -f "$out_dir/contigs.fasta" ]]; then
+            target_fa="$out_dir/contigs.fasta"
+            if [[ ! -f "$target_fa" ]]; then
                 echo "🧬 SPAdes Assembling ($SPADES_FLAGS): $sample_id"
-                spades.py $SPADES_FLAGS -t "$THREADS" -m 450 \
-                    -1 "$f1p" -2 "${f1p/_1P/_2P}" -o "$out_dir" \
-                    &> "./logs/$sample_id.spades.log"
+                spades.py $SPADES_FLAGS -t "$THREADS" -m 450 -1 "$f1p" -2 "$f2p" -o "$out_dir" \
+                &> "./logs/$sample_id.spades.log"
             fi
+        fi
+
+        # 2. Coverage Calculation (Bowtie2 + Samtools)
+        if [[ -f "$target_fa" && ! -f "$out_dir/coverage.txt" ]]; then
+            echo "🎯 Calculating Coverage: $sample_id"
+            bowtie2-build --threads "$THREADS" "$target_fa" "$out_dir/bt2_idx" > /dev/null 2>&1
+
+            bowtie2 -x "$out_dir/bt2_idx" -1 "$f1p" -2 "$f2p" -p "$THREADS" --very-fast-local --no-unal \
+                2> "./logs/$sample_id.bowtie2.log" \
+                | samtools sort -@ "$THREADS" -o "$out_dir/mapped.bam"
+
+            samtools coverage "$out_dir/mapped.bam" -o "$out_dir/coverage.txt"
+            samtools index "$out_dir/mapped.bam"
+            rm "$out_dir"/bt2_idx.*
         fi
     done
 fi
@@ -184,6 +216,9 @@ done
 # ==============================================================================
 if [[ "$REMOVE_TEMP" == "y" ]]; then
     echo "🧹 Cleanup active..."
+    # Keep coverage.txt but remove heavy mapping files
+    find "$ASM_DIR" -name "*.bam" -delete
+    find "$ASM_DIR" -name "*.bai" -delete
     [[ "$RAW_MODE" == "n" ]] && rm -rf "$TRIM_DIR" "$ASM_DIR" || rm -rf "$DERE_DIR"
 fi
 
