@@ -2,9 +2,9 @@
 set -ueo pipefail
 
 # ==============================================================================
-# NGSCLASS.SH (v1.5)
+# NGSCLASS.SH (v1.7)
 # Modular NGS Classification Pipeline
-# Added: Unzipped support, Seqkit sorting, Bowtie2 Coverage, Restored Help info
+# Features: Unzipped support, Seqkit sorting, Bowtie2 Coverage in /coverage/
 # ==============================================================================
 
 # --- CONDA ENVIRONMENT CHECK ---
@@ -56,7 +56,7 @@ Help() {
     echo "  -p [int]    Threads. Default: $THREADS"
     echo "  -b [int]    Diamond block size. Default: $DIAMOND_BLOCK"
     echo "  -c [int]    Diamond chunks. Default: $DIAMOND_CHUNKS"
-    echo "  -r [y|n]    Remove intermediate files (including BAMs). Default: $REMOVE_TEMP"
+    echo "  -r [y|n]    Remove intermediate files (keeps coverage results). Default: $REMOVE_TEMP"
     echo "  -h          Show this help"
 }
 
@@ -78,7 +78,8 @@ done
 TRIM_DIR="./trimmed"
 ASM_DIR="./assembly"
 DERE_DIR="./dereplicated"
-mkdir -p "$ASM_DIR" "$DMND_DIR" "./logs"
+COV_DIR="./coverage"
+mkdir -p "$ASM_DIR" "$DMND_DIR" "$COV_DIR" "./logs"
 if [[ "$RAW_MODE" == "n" ]]; then
     mkdir -p "$TRIM_DIR"
 else
@@ -111,19 +112,15 @@ else
         f2="${f1/_R1_/_R2_}"
         sample_name=$(basename "$f1" | sed 's/_L.*//')
         derep_f="$DERE_DIR/${sample_name}_derep.fa"
-
         if [[ ! -f "$derep_f" ]]; then
             echo "   Dereplicating: $sample_name"
             temp_fq="$DERE_DIR/${sample_name}_temp.fastq"
-            # gzip -dc -f handles both .gz and uncompressed .fastq
             gzip -dc -f "$f1" "$f2" > "$temp_fq"
-
             "$USEARCH" -fastx_uniques "$temp_fq" \
                 -fastaout "$derep_f" \
                 -sizeout -relabel "${sample_name}_" \
                 -threads "$THREADS" \
                 &> "./logs/$sample_name.usearch.log"
-
             rm "$temp_fq"
         fi
     done
@@ -138,6 +135,7 @@ if [[ "$RAW_MODE" == "n" ]]; then
         sample_id=$(basename "$f1p" _1P.fastq.gz)
         f2p="${f1p/_1P.fastq.gz/_2P.fastq.gz}"
         out_dir="$ASM_DIR/$sample_id"
+        sample_cov_dir="$COV_DIR/$sample_id"
 
         # 1. Assembly
         if [[ "$ASM_MODE" == "m" ]]; then
@@ -147,7 +145,6 @@ if [[ "$RAW_MODE" == "n" ]]; then
                 megahit -o "$out_dir" -1 "$f1p" -2 "$f2p" -t "$THREADS" --continue \
                 &> "./logs/$sample_id.megahit.log"
 
-                # Sort contigs by decreasing length using seqkit
                 if [[ -f "$target_fa" ]]; then
                     echo "📏 Sorting contigs: $sample_id"
                     seqkit sort --by-length --reverse "$target_fa" -o "${target_fa}.tmp"
@@ -163,17 +160,16 @@ if [[ "$RAW_MODE" == "n" ]]; then
             fi
         fi
 
-        # 2. Coverage Calculation (Bowtie2 + Samtools)
-        if [[ -f "$target_fa" && ! -f "$out_dir/coverage.txt" ]]; then
+        # 2. Coverage Calculation
+        if [[ -f "$target_fa" && ! -f "$sample_cov_dir/coverage.txt" ]]; then
             echo "🎯 Calculating Coverage: $sample_id"
+            mkdir -p "$sample_cov_dir"
             bowtie2-build --threads "$THREADS" "$target_fa" "$out_dir/bt2_idx" > /dev/null 2>&1
-
             bowtie2 -x "$out_dir/bt2_idx" -1 "$f1p" -2 "$f2p" -p "$THREADS" --very-fast-local --no-unal \
                 2> "./logs/$sample_id.bowtie2.log" \
-                | samtools sort -@ "$THREADS" -o "$out_dir/mapped.bam"
-
-            samtools coverage "$out_dir/mapped.bam" -o "$out_dir/coverage.txt"
-            samtools index "$out_dir/mapped.bam"
+                | samtools sort -@ "$THREADS" -o "$sample_cov_dir/mapped.bam"
+            samtools coverage "$sample_cov_dir/mapped.bam" -o "$sample_cov_dir/coverage.txt"
+            samtools index "$sample_cov_dir/mapped.bam"
             rm "$out_dir"/bt2_idx.*
         fi
     done
@@ -216,9 +212,6 @@ done
 # ==============================================================================
 if [[ "$REMOVE_TEMP" == "y" ]]; then
     echo "🧹 Cleanup active..."
-    # Keep coverage.txt but remove heavy mapping files
-    find "$ASM_DIR" -name "*.bam" -delete
-    find "$ASM_DIR" -name "*.bai" -delete
     [[ "$RAW_MODE" == "n" ]] && rm -rf "$TRIM_DIR" "$ASM_DIR" || rm -rf "$DERE_DIR"
 fi
 
