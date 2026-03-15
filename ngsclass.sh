@@ -2,8 +2,8 @@
 set -ueo pipefail
 
 # ==============================================================================
-# NGSCLASS.SH (v1.2)
-# Modular NGS Classification Pipeline
+# NGSCLASS.SH (v1.3)
+# Modular NGS Classification Pipeline - Updated for unzipped files & seqkit
 # ==============================================================================
 
 # --- CONDA ENVIRONMENT CHECK ---
@@ -39,19 +39,7 @@ Help() {
     echo "Options:"
     echo "  -x [y|n]    Dereplication mode (skip assembly). Default: $RAW_MODE"
     echo "  -a [m|s]    Assembly tool: (m)egahit or (s)pades. Default: $ASM_MODE"
-    echo "  -f [str]    SPAdes mode flags. Options include:"
-    echo "                --isolate       (High-coverage isolates)"
-    echo "                --sc            (Single-cell MDA data)"
-    echo "                --meta          (Metagenomic data)"
-    echo "                --rna           (Transcriptomic data)"
-    echo "                --plasmid       (Plasmid assembly from WGS)"
-    echo "                --metaviral     (Viral assembly from metagenomes)"
-    echo "                --metaplasmid   (Plasmid assembly from metagenomes)"
-    echo "                --rnaviral      (Viral RNA-Seq data)"
-    echo "                --bio           (Biosynthetic gene clusters)"
-    echo "                --corona        (SARS-CoV-2 data)"
-    echo "                --sewage        (Wastewater metagenomics)"
-    echo "              Default: $SPADES_FLAGS"
+    echo "  -f [str]    SPAdes mode flags. Default: $SPADES_FLAGS"
     echo "  -p [int]    Threads. Default: $THREADS"
     echo "  -b [int]    Diamond block size. Default: $DIAMOND_BLOCK"
     echo "  -c [int]    Diamond chunks. Default: $DIAMOND_CHUNKS"
@@ -84,52 +72,46 @@ else
     mkdir -p "$DERE_DIR"
 fi
 
-#
-
 # ==============================================================================
 # SECTION 1: TRIMMING OR DEREPLICATION
 # ==============================================================================
-if [[ "$RAW_MODE" == "n" ]]; then
-    echo "✂️ Mode: Trimming (Preparing for Assembly)"
-    for f1 in ./fa/*_R1_*.fastq.gz; do
-        [ -e "$f1" ] || continue
-        sample_name=$(basename "$f1" | sed 's/_L.*//')
+# Updated glob to find .fastq and .fastq.gz
+for f1 in ./fa/*_R1_*.fastq*; do
+    [ -e "$f1" ] || continue
+
+    f2="${f1/_R1_/_R2_}"
+    sample_name=$(basename "$f1" | sed 's/_L.*//')
+
+    if [[ "$RAW_MODE" == "n" ]]; then
         out_p="$TRIM_DIR/${sample_name}"
         if [[ ! -f "${out_p}_1P.fastq.gz" ]]; then
+            echo "✂️ Trimming: $sample_name"
+            # Trimmomatic automatically detects if input is gzipped or not
             trimmomatic PE -threads "$TRIM_THREADS" -phred33 -quiet \
-                -summary "./logs/${sample_name}"_trimmed.log "$f1" "${f1/_R1_/_R2_}" \
+                -summary "./logs/${sample_name}"_trimmed.log "$f1" "$f2" \
                 "${out_p}_1P.fastq.gz" "${out_p}_1U.fastq.gz" \
                 "${out_p}_2P.fastq.gz" "${out_p}_2U.fastq.gz" \
                 SLIDINGWINDOW:4:15 MINLEN:75
         fi
-    done
-else
-    echo "🌀 Mode: Raw Read Dereplication (USEARCH)"
-    for f1 in ./fa/*_R1_*.fastq.gz; do
-        [ -e "$f1" ] || continue
-        sample_name=$(basename "$f1" | sed 's/_L.*//')
+    else
         derep_f="$DERE_DIR/${sample_name}_derep.fa"
-
         if [[ ! -f "$derep_f" ]]; then
-            echo "🧬 Dereplicating: $sample_name"
-
-            # Create a temporary uncompressed file
+            echo "🌀 Dereplicating: $sample_name"
             temp_fq="$DERE_DIR/${sample_name}_temp.fastq"
 
-            zcat "$f1" "${f1/_R1_/_R2_}" > "$temp_fq"
+            # gzip -dc -f works like cat for plain text and zcat for .gz
+            gzip -dc -f "$f1" "$f2" > "$temp_fq"
 
-            # Run USEARCH on the actual file
             "$USEARCH" -fastx_uniques "$temp_fq" \
                 -fastaout "$derep_f" \
                 -sizeout -relabel "${sample_name}_" \
                 -threads "$THREADS" \
                 &> "./logs/$sample_name.usearch.log"
 
-            # Immediate cleanup of the massive temp file
             rm "$temp_fq"
         fi
-    done
-fi
+    fi
+done
 
 # ==============================================================================
 # SECTION 2: ASSEMBLY
@@ -146,7 +128,7 @@ if [[ "$RAW_MODE" == "n" ]]; then
                 megahit -o "$out_dir" -1 "$f1p" -2 "${f1p/_1P/_2P}" -t "$THREADS" --continue \
                     &> "./logs/$sample_id.megahit.log"
 
-                # --- ADDED: Sort contigs by decreasing length ---
+                # --- SORTING WITH SEQKIT ---
                 if [[ -f "$out_dir/final.contigs.fa" ]]; then
                     echo "📏 Sorting contigs by length: $sample_id"
                     seqkit sort --by-length --reverse "$out_dir/final.contigs.fa" \
@@ -184,7 +166,6 @@ for f in "${INPUTS[@]}"; do
 
     if [[ ! -f "$tsv_out" && ! -f "${tsv_out}.gz" ]]; then
         echo "🔍 Classifying: $sample_name"
-        # Updated --outfmt to include sphylums for dmnd2class.sh compatibility
         diamond blastx -d "$DIAMOND_DB" -q "$f" -o "$tsv_out" \
             --max-target-seqs 1 --evalue 1E-5 -b "$DIAMOND_BLOCK" -c "$DIAMOND_CHUNKS" \
             --outfmt 6 qseqid full_qseq evalue staxids sscinames sskingdoms skingdoms sphylums \
