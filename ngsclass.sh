@@ -2,9 +2,9 @@
 set -ueo pipefail
 
 # ==============================================================================
-# NGSCLASS.SH (v1.7)
-# Modular NGS Classification Pipeline
-# Features: Unzipped support, Seqkit sorting, Bowtie2 Coverage in /coverage/
+# NGSCLASS.SH (v1.8)
+# Features: Unzipped support, Seqkit sort, Bowtie2 Coverage,
+#           and TSV Enrichment (adds coverage to Diamond IDs)
 # ==============================================================================
 
 # --- CONDA ENVIRONMENT CHECK ---
@@ -18,20 +18,17 @@ fi
 DIAMOND_DB="/mnt/micke_ssd/resources/nr_cluster_seq_2026_270.0"
 USEARCH="usearch11.0.667_i86linux64"
 
-# Resources & Defaults
 THREADS=$(grep -c 'processor' /proc/cpuinfo)
 TRIM_THREADS=8
 DIAMOND_BLOCK=12
 DIAMOND_CHUNKS=1
-RAW_MODE="n"        # -x y: Derep mode
-ASM_MODE="m"        # -a m: Megahit, -a s: SPAdes
-SPADES_FLAGS=""     # -f: SPAdes specific mode
+RAW_MODE="n"
+ASM_MODE="m"
+SPADES_FLAGS=""
 REMOVE_TEMP="n"
 
-# Versioning for Diamond directory
 GB_VER="${DIAMOND_DB##*_}"
 DMND_DIR="./diamond_${GB_VER}"
-
 export TRIMMOMATIC_JAVA_OPTS="-Xmx128G -XX:ParallelGCThreads=2"
 
 # --- 2. Help & Argument Parsing ---
@@ -41,17 +38,9 @@ Help() {
     echo "  -x [y|n]    Dereplication mode (skip assembly). Default: $RAW_MODE"
     echo "  -a [m|s]    Assembly tool: (m)egahit or (s)pades. Default: $ASM_MODE"
     echo "  -f [str]    SPAdes mode flags. Options include:"
-    echo "                --isolate       (High-coverage isolates)"
-    echo "                --sc            (Single-cell MDA data)"
-    echo "                --meta          (Metagenomic data)"
-    echo "                --rna           (Transcriptomic data)"
-    echo "                --plasmid       (Plasmid assembly from WGS)"
-    echo "                --metaviral     (Viral assembly from metagenomes)"
-    echo "                --metaplasmid   (Plasmid assembly from metagenomes)"
-    echo "                --rnaviral      (Viral RNA-Seq data)"
-    echo "                --bio           (Biosynthetic gene clusters)"
-    echo "                --corona        (SARS-CoV-2 data)"
-    echo "                --sewage        (Wastewater metagenomics)"
+    echo "                --isolate, --sc, --meta, --rna, --plasmid,"
+    echo "                --metaviral, --metaplasmid, --rnaviral, --bio,"
+    echo "                --corona, --sewage"
     echo "              Default: $SPADES_FLAGS"
     echo "  -p [int]    Threads. Default: $THREADS"
     echo "  -b [int]    Diamond block size. Default: $DIAMOND_BLOCK"
@@ -75,16 +64,9 @@ while getopts "x:a:f:p:b:c:r:h" opt; do
 done
 
 # --- 3. Directory Setup ---
-TRIM_DIR="./trimmed"
-ASM_DIR="./assembly"
-DERE_DIR="./dereplicated"
-COV_DIR="./coverage"
+TRIM_DIR="./trimmed"; ASM_DIR="./assembly"; DERE_DIR="./dereplicated"; COV_DIR="./coverage"
 mkdir -p "$ASM_DIR" "$DMND_DIR" "$COV_DIR" "./logs"
-if [[ "$RAW_MODE" == "n" ]]; then
-    mkdir -p "$TRIM_DIR"
-else
-    mkdir -p "$DERE_DIR"
-fi
+[[ "$RAW_MODE" == "n" ]] && mkdir -p "$TRIM_DIR" || mkdir -p "$DERE_DIR"
 
 # ==============================================================================
 # SECTION 1: TRIMMING OR DEREPLICATION
@@ -109,17 +91,14 @@ else
     echo "🌀 Mode: Raw Read Dereplication (USEARCH)"
     for f1 in ./fa/*_R1_*.fastq*; do
         [ -e "$f1" ] || continue
-        f2="${f1/_R1_/_R2_}"
         sample_name=$(basename "$f1" | sed 's/_L.*//')
         derep_f="$DERE_DIR/${sample_name}_derep.fa"
         if [[ ! -f "$derep_f" ]]; then
             echo "   Dereplicating: $sample_name"
             temp_fq="$DERE_DIR/${sample_name}_temp.fastq"
-            gzip -dc -f "$f1" "$f2" > "$temp_fq"
-            "$USEARCH" -fastx_uniques "$temp_fq" \
-                -fastaout "$derep_f" \
-                -sizeout -relabel "${sample_name}_" \
-                -threads "$THREADS" \
+            gzip -dc -f "$f1" "${f1/_R1_/_R2_}" > "$temp_fq"
+            "$USEARCH" -fastx_uniques "$temp_fq" -fastaout "$derep_f" \
+                -sizeout -relabel "${sample_name}_" -threads "$THREADS" \
                 &> "./logs/$sample_name.usearch.log"
             rm "$temp_fq"
         fi
@@ -137,14 +116,12 @@ if [[ "$RAW_MODE" == "n" ]]; then
         out_dir="$ASM_DIR/$sample_id"
         sample_cov_dir="$COV_DIR/$sample_id"
 
-        # 1. Assembly
         if [[ "$ASM_MODE" == "m" ]]; then
             target_fa="$out_dir/final.contigs.fa"
             if [[ ! -f "$target_fa" ]]; then
                 echo "🧬 Megahit Assembling: $sample_id"
                 megahit -o "$out_dir" -1 "$f1p" -2 "$f2p" -t "$THREADS" --continue \
                 &> "./logs/$sample_id.megahit.log"
-
                 if [[ -f "$target_fa" ]]; then
                     echo "📏 Sorting contigs: $sample_id"
                     seqkit sort --by-length --reverse "$target_fa" -o "${target_fa}.tmp"
@@ -160,7 +137,6 @@ if [[ "$RAW_MODE" == "n" ]]; then
             fi
         fi
 
-        # 2. Coverage Calculation
         if [[ -f "$target_fa" && ! -f "$sample_cov_dir/coverage.txt" ]]; then
             echo "🎯 Calculating Coverage: $sample_id"
             mkdir -p "$sample_cov_dir"
@@ -176,7 +152,7 @@ if [[ "$RAW_MODE" == "n" ]]; then
 fi
 
 # ==============================================================================
-# SECTION 3: CLASSIFICATION (Diamond)
+# SECTION 3: CLASSIFICATION & ENRICHMENT
 # ==============================================================================
 echo "💎 Starting Diamond Classification..."
 
@@ -191,6 +167,7 @@ for f in "${INPUTS[@]}"; do
     [ -e "$f" ] || continue
     sample_name=$( [[ "$RAW_MODE" == "y" ]] && basename "$f" _derep.fa || basename "$(dirname "$f")" )
     tsv_out="$DMND_DIR/${sample_name}.tsv"
+    cov_file="$COV_DIR/${sample_name}/coverage.txt"
 
     if [[ ! -f "$tsv_out" && ! -f "${tsv_out}.gz" ]]; then
         echo "🔍 Classifying: $sample_name"
@@ -199,6 +176,17 @@ for f in "${INPUTS[@]}"; do
             --outfmt 6 qseqid full_qseq evalue staxids sscinames sskingdoms skingdoms sphylums \
             &> "./logs/$sample_name.diamond.log"
 
+        # --- ENRICH TSV WITH COVERAGE ---
+        if [[ -f "$cov_file" ]]; then
+            echo "➕ Adding coverage to TSV: $sample_name"
+            # Map $1 (ID) to $7 (meandepth) from coverage.txt, then update $1 in Diamond TSV
+            awk -v FS='\t' -v OFS='\t' '
+                NR==FNR { if($1 != "#rname") cov[$1]=$7; next }
+                { if($1 in cov) $1 = $1 ":cov_" cov[$1]; print }
+            ' "$cov_file" "$tsv_out" > "${tsv_out}.tmp" && mv "${tsv_out}.tmp" "$tsv_out"
+        fi
+
+        # Extract Fastas (Now automatically includes :cov_XX in headers)
         for K in Viruses Eukaryota Bacteria; do
             awk -v K="$K" -v FS='\t' '$6 == K { gsub(/ /,"_"); print ">"$1":"$5"\n"$2 }' "$tsv_out" \
             > "$DMND_DIR/${sample_name}_${K,,}.fa"
