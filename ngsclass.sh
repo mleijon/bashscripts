@@ -3,8 +3,6 @@ set -ueo pipefail
 
 # ==============================================================================
 # NGSCLASS.SH (v1.8)
-# Features: Unzipped support, Seqkit sort, Bowtie2 Coverage,
-#           and TSV Enrichment (adds coverage to Diamond IDs)
 # ==============================================================================
 
 # --- CONDA ENVIRONMENT CHECK ---
