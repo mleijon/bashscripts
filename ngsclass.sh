@@ -145,6 +145,14 @@ if [[ "$RAW_MODE" == "n" ]]; then
                 echo "🧬 Megahit Assembling: $sample_id"
                 megahit -o "$out_dir" -1 "$f1p" -2 "${f1p/_1P/_2P}" -t "$THREADS" --continue \
                     &> "./logs/$sample_id.megahit.log"
+
+                # --- ADDED: Sort contigs by decreasing length ---
+                if [[ -f "$out_dir/final.contigs.fa" ]]; then
+                    echo "📏 Sorting contigs by length: $sample_id"
+                    seqkit sort --by-length --reverse "$out_dir/final.contigs.fa" \
+                        -o "$out_dir/final.contigs.sorted.fa"
+                    mv "$out_dir/final.contigs.sorted.fa" "$out_dir/final.contigs.fa"
+                fi
             fi
         else
             if [[ ! -f "$out_dir/contigs.fasta" ]]; then
