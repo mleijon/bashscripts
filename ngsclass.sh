@@ -123,7 +123,7 @@ if [[ "$RAW_MODE" == "n" ]]; then
             target_fa="$out_dir/final.contigs.fa"
             if [[ ! -f "$target_fa" ]]; then
                 echo "🧬 Megahit Assembling: $sample_id"
-                megahit -o "$out_dir" -1 "$f1p" -2 "$f2p" -r "$f1u,$f2u"-t "$THREADS" --continue \
+                megahit -o "$out_dir" -1 "$f1p" -2 "$f2p" -r "$f1u,$f2u" -t "$THREADS" --continue \
                 &> "./logs/$sample_id.megahit.log"
                 if [[ -f "$target_fa" ]]; then
                     echo "📏 Sorting contigs: $sample_id"
@@ -144,8 +144,8 @@ if [[ "$RAW_MODE" == "n" ]]; then
             echo "🎯 Calculating Coverage: $sample_id"
             mkdir -p "$sample_cov_dir"
             bowtie2-build --threads "$THREADS" "$target_fa" "$out_dir/bt2_idx" > /dev/null 2>&1
-            bowtie2 -x "$out_dir/bt2_idx" -1 "$f1p" -2 "$f2p" -p "$THREADS" --very-fast-local --no-unal \
-                2> "./logs/$sample_id.bowtie2.log" \
+            bowtie2 -x "$out_dir/bt2_idx" -1 "$f1p" -2 "$f2p" -U "$f1u,$f2u" -p "$THREADS" \
+            --very-fast-local --no-unal 2> "./logs/$sample_id.bowtie2.log" \
                 | samtools sort -@ "$THREADS" -o "$sample_cov_dir/mapped.bam"
             samtools coverage "$sample_cov_dir/mapped.bam" -o "$sample_cov_dir/coverage.txt"
             samtools index "$sample_cov_dir/mapped.bam"
