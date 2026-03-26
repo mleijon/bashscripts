@@ -111,11 +111,6 @@ if [[ "$RAW_MODE" == "n" ]]; then
         [ -e "$f1p" ] || continue
         sample_id=$(basename "$f1p" _1P.fastq.gz)
         f2p="${f1p/_1P.fastq.gz/_2P.fastq.gz}"
-
-        # Define Singletons
-        f1u="${f1p/_1P.fastq.gz/_1U.fastq.gz}"
-        f2u="${f1p/_1P.fastq.gz/_2U.fastq.gz}"
-
         out_dir="$ASM_DIR/$sample_id"
         sample_cov_dir="$COV_DIR/$sample_id"
 
@@ -123,7 +118,7 @@ if [[ "$RAW_MODE" == "n" ]]; then
             target_fa="$out_dir/final.contigs.fa"
             if [[ ! -f "$target_fa" ]]; then
                 echo "🧬 Megahit Assembling: $sample_id"
-                megahit -o "$out_dir" -1 "$f1p" -2 "$f2p" -r "$f1u,$f2u"-t "$THREADS" --continue \
+                megahit -o "$out_dir" -1 "$f1p" -2 "$f2p" -t "$THREADS" --continue \
                 &> "./logs/$sample_id.megahit.log"
                 if [[ -f "$target_fa" ]]; then
                     echo "📏 Sorting contigs: $sample_id"
@@ -135,8 +130,8 @@ if [[ "$RAW_MODE" == "n" ]]; then
             target_fa="$out_dir/contigs.fasta"
             if [[ ! -f "$target_fa" ]]; then
                 echo "🧬 SPAdes Assembling ($SPADES_FLAGS): $sample_id"
-                spades.py $SPADES_FLAGS -t "$THREADS" -m 450 -1 "$f1p" -2 "$f2p" -s "$f1u" -s "$f2u" \
-                -o "$out_dir" &> "./logs/$sample_id.spades.log"
+                spades.py $SPADES_FLAGS -t "$THREADS" -m 450 -1 "$f1p" -2 "$f2p" -o "$out_dir" \
+                &> "./logs/$sample_id.spades.log"
             fi
         fi
 
