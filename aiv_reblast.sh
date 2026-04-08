@@ -3,7 +3,7 @@
 set -ueo pipefail
 
 # NCBI API Key (Ensure this is valid)
-export NCBI_API_KEY="296c865d44ec586acc1bbd0b872f9d4a3809"
+export NCBI_API_KEY="11a4df7a92bf7aef31e2ba1f4570300f6009"
 
 if [[ -z "${1:-}" || -z "${2:-}" ]]; then
     echo "Usage: $0 <input.fasta> <output_directory>"
