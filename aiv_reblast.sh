@@ -33,7 +33,7 @@ echo "Sending batch request to NCBI (Remote)..."
 # --- STEP 2: Run Batch BLAST (using cleaned input) ---
 # Filtered for viruses (txid10239) and remote execution
 blastn -query "$INPUT_FILE" -db nt -max_target_seqs 5 -max_hsps 1 \
-        -entrez_query "txid2955291[orgn]" -remote \
+        -taxids 2955291,11320 -remote \
         -outfmt "6 qseqid sacc sstrand bitscore stitle" > "$blast_results"
 
 # --- STEP 3: Process and Sort results ---
