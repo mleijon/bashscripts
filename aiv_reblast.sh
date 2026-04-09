@@ -17,7 +17,8 @@ mkdir -p "$OUT_DIR"
 # --- STEP 1: Create a cleaned temporary FASTA ---
 # Truncates headers at the first space/semicolon for tool compatibility
 INPUT_FILE=$(mktemp)
-sed 's/[ ;].*//' "$RAW_INPUT" > "$INPUT_FILE"
+# First clean the headers, then filter for Influenza records
+sed 's/[ ;].*//' "$RAW_INPUT" | grep -iA1 "influenza" | grep -v "^--" > "$INPUT_FILE"
 
 BASE_NAME=$(basename "${RAW_INPUT%.*}")
 MASTER_CSV="${OUT_DIR}/${BASE_NAME}_master_summary.csv"
