@@ -45,7 +45,7 @@ while IFS=$'\t' read -r qseqid sacc strand score stitle; do
     fi
 
     if [ -n "$sacc" ]; then
-        megahit_id="$qseqid"
+        query_id="$qseqid"
 
         # --- SMART SEGMENT EXTRACTION ---
         # Priority 1: Check for "segment X"
@@ -71,13 +71,13 @@ while IFS=$'\t' read -r qseqid sacc strand score stitle; do
 
         # --- Reorient sequences to Plus strand and Append ---
         if [ "$strand" == "plus" ]; then
-            seqkit faidx "$INPUT_FILE" "$qseqid" | seqkit replace -p ".*" -r "${megahit_id} | ${stitle}" | seqkit seq -w 0 >> "$SEG_FASTA"
+            seqkit faidx "$INPUT_FILE" "$qseqid" | seqkit replace -p ".*" -r "${query_id} | ${stitle}" | seqkit seq -w 0 >> "$SEG_FASTA"
         else
             # Reverse complement if on minus strand
-            seqkit faidx "$INPUT_FILE" "$qseqid" | seqkit replace -p ".*" -r "${megahit_id} | ${stitle}" | seqkit seq -t DNA -r -p -w 0 >> "$SEG_FASTA"
+            seqkit faidx "$INPUT_FILE" "$qseqid" | seqkit replace -p ".*" -r "${query_id} | ${stitle}" | seqkit seq -t DNA -r -p -w 0 >> "$SEG_FASTA"
         fi
 
-        echo "$seg_suffix,$megahit_id,$sacc,$strand,$score,\"$stitle\"" >> "$SEG_CSV"
+        echo "$seg_suffix,$query_id,$sacc,$strand,$score,\"$stitle\"" >> "$SEG_CSV"
         echo "$qseqid" >> "$seen_list"
     fi
 
