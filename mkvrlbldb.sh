@@ -21,7 +21,7 @@ lftp -c "open $GENBANK_FTP; mirror \
      --only-newer \
      --parallel=5 \
      --no-recursion \
-     --include='gbvrl.*\.aso\.gz'"
+     --include='gbvrl.*\.aso\.gz' . ."
 
 echo "------------------------------------------------"
 echo "Step 2: Downloading Taxonomy Database (taxdb)"
@@ -66,7 +66,7 @@ if [ "$SHOULD_BUILD" = true ]; then
         -in "$FILES" \
         -dbtype nucl \
         -input_type asn1_bin \
-        -title "Viral GenBank 270.0" \
+        -title "Viral GenBank $GENBANK_VERSION" \
         -out "$DB_NAME" \
         -parse_seqids
 else
