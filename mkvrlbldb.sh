@@ -75,4 +75,3 @@ fi
 
 echo "------------------------------------------------"
 echo "Success! Database is ready in: $OUT_DIR/$DB_NAME"
-rm "$OUT_DIR"/*.gz
