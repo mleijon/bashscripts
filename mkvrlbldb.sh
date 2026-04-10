@@ -14,8 +14,8 @@ cd "$OUT_DIR"
 echo "------------------------------------------------"
 echo "Step 1: Downloading Viral ASN.1 files (gbvrl*.aso.gz)"
 echo "------------------------------------------------"
-# Using --no-clobber (-nc) to avoid re-downloading existing files
-wget -nc "${GENBANK_FTP}/gbvrl"*.aso.gz
+# Faster, parallel download of all viral files
+lftp -c "open https://ftp.ncbi.nlm.nih.gov/genbank/; mirror --parallel=5 --include='gbvrl.*\.aso\.gz'"
 
 echo "------------------------------------------------"
 echo "Step 2: Downloading Taxonomy Database (taxdb)"
