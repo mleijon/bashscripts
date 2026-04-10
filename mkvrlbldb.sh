@@ -2,7 +2,10 @@
 set -ueo pipefail
 
 # --- CONFIGURATION ---
-DB_NAME="VRL_270.0"
+echo "Fetching GenBank version..."
+wget -q -O GB_Release_Number https://ftp.ncbi.nlm.nih.gov/genbank/GB_Release_Number
+GENBANK_VERSION=$(< GB_Release_Number)
+DB_NAME="VRL_$GENBANK_VERSION"
 OUT_DIR="/mnt/micke_ssd/resources"
 # NCBI FTP paths
 GENBANK_FTP="https://ftp.ncbi.nlm.nih.gov/ncbi-asn1/"
@@ -23,14 +26,23 @@ lftp -c "open $GENBANK_FTP; mirror \
 echo "------------------------------------------------"
 echo "Step 2: Downloading Taxonomy Database (taxdb)"
 echo "------------------------------------------------"
-# taxdb is required for taxonomy-related flags (like -taxids) in local BLAST
-wget -qO- "$TAXDB_FTP" | tar -xvz
+# -N (timestamping) only downloads if the remote file is newer than the local copy
+wget -N "$TAXDB_FTP"
+
+# Only extract if the archive is newer than the extracted database files
+# (Using taxdb.btd as a marker file)
+if [ ! -f "taxdb.btd" ] || [ "taxdb.tar.gz" -nt "taxdb.btd" ]; then
+    echo "New taxonomy data found. Extracting..."
+    tar -xvzf taxdb.tar.gz taxdb.btd taxdb.bti
+else
+    echo "Taxonomy files are already up to date."
+fi
 
 echo "------------------------------------------------"
 echo "Step 3: Checking if database needs to be (re)built"
 echo "------------------------------------------------"
 
-FILES=$(ls gbvrl*.aso.gz)
+FILES=$(echo gbvrl*.aso.gz)
 SHOULD_BUILD=false
 
 # Check if the database index file (.nsq) exists
@@ -63,3 +75,4 @@ fi
 
 echo "------------------------------------------------"
 echo "Success! Database is ready in: $OUT_DIR/$DB_NAME"
+rm "$OUT_DIR"/*.gz
