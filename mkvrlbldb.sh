@@ -5,7 +5,7 @@ set -ueo pipefail
 DB_NAME="VRL_270.0"
 OUT_DIR="/mnt/micke_ssd/resources"
 # NCBI FTP paths
-GENBANK_FTP="https://ftp.ncbi.nlm.nih.gov/genbank"
+GENBANK_FTP="https://ftp.ncbi.nlm.nih.gov/ncbi-asn1/"
 TAXDB_FTP="https://ftp.ncbi.nlm.nih.gov/blast/db/taxdb.tar.gz"
 
 mkdir -p "$OUT_DIR"
@@ -15,7 +15,7 @@ echo "------------------------------------------------"
 echo "Step 1: Downloading Viral ASN.1 files (gbvrl*.aso.gz)"
 echo "------------------------------------------------"
 # Faster, parallel download of all viral files
-lftp -c "open https://ftp.ncbi.nlm.nih.gov/genbank/; mirror --parallel=5 --include='gbvrl.*\.aso\.gz'"
+lftp -c "open $genbank_FTP; mirror --parallel=5 --include='gbvrl.*\.aso\.gz'"
 
 echo "------------------------------------------------"
 echo "Step 2: Downloading Taxonomy Database (taxdb)"
