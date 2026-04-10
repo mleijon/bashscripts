@@ -2,6 +2,8 @@
 # Safety: exit on error or undefined variables
 set -ueo pipefail
 
+DB_NAME="/mnt/micke_ssd/resources/VRL_270.0"
+
 # NCBI API Key (Ensure this is valid)
 export NCBI_API_KEY="11a4df7a92bf7aef31e2ba1f4570300f6009"
 
@@ -32,8 +34,8 @@ echo "Sending batch request to NCBI (Remote)..."
 
 # --- STEP 2: Run Batch BLAST (using cleaned input) ---
 # Filtered for viruses (txid10239) and remote execution
-blastn -query "$INPUT_FILE" -db nt -max_target_seqs 5 -max_hsps 1 \
-        -entrez_query "txid2955291[orgn] OR txid11320[orgn]" -remote \
+blastn -query "$INPUT_FILE" -db "$DB_NAME" -max_target_seqs 5 -max_hsps 1 \
+        -taxids 2955291,11320 \
         -outfmt "6 qseqid sacc sstrand bitscore stitle" > "$blast_results"
 
 # --- STEP 3: Process and Sort results ---
