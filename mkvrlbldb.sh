@@ -15,7 +15,7 @@ echo "------------------------------------------------"
 echo "Step 1: Downloading Viral ASN.1 files (gbvrl*.aso.gz)"
 echo "------------------------------------------------"
 # Faster, parallel download of all viral files
-lftp -c "open $genbank_FTP; mirror --parallel=5 --include='gbvrl.*\.aso\.gz'"
+lftp -c "open $GENBANK_FTP; mirror --parallel=5 --include='gbvrl.*\.aso\.gz'"
 
 echo "------------------------------------------------"
 echo "Step 2: Downloading Taxonomy Database (taxdb)"
