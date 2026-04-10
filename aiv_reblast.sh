@@ -88,20 +88,20 @@ echo "------------------------------------------------"
 echo "Finalizing and Sorting files..."
 echo "Segment_Group,Megahit_ID,Accession,Strand,Bitscore,Full_Title" > "$MASTER_CSV"
 
+# 1. Process FASTA files
 for fa in "${OUT_DIR}"/*.fa; do
     if [ -f "$fa" ]; then
-        # Sort sequences within files by length/name
         seqkit sort -l -r -w 0 "$fa" -o "${fa}.tmp" && mv "${fa}.tmp" "$fa"
-
-        csv_tmp="${fa%.fa}.csv.tmp"
-        if [ -f "$csv_tmp" ]; then
-            cat "$csv_tmp" >> "$MASTER_CSV"
-            rm "$csv_tmp"
-        fi
-        
         count=$(grep -c ">" "$fa")
         echo "✅ $(basename "$fa"): $count sequences"
     fi
 done
+
+# 2. Concatenate all .tmp CSV files and then remove them
+# Using find ensures we catch all files created in Step 3
+if ls "${OUT_DIR}"/*.csv.tmp >/dev/null 2>&1; then
+    cat "${OUT_DIR}"/*.csv.tmp >> "$MASTER_CSV"
+    rm "${OUT_DIR}"/*.csv.tmp
+fi
 
 echo "Done! Check: $MASTER_CSV"
