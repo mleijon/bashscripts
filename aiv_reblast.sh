@@ -19,12 +19,6 @@ usage() {
     exit "${1:-0}"
 }
 
-if ! wget -q -O GB_Release_Number https://ftp.ncbi.nlm.nih.gov/genbank/GB_Release_Number; then
-    echo "Warning: Could not fetch GenBank version, using default."
-    GENBANK_VERSION="latest"
-else
-    GENBANK_VERSION=$(< GB_Release_Number)
-fi
 REMOTE_MODE=false
 
 while getopts "rh" opt; do
@@ -41,6 +35,13 @@ shift $((OPTIND -1))
 # Then trigger it if args are missing:
 if [[ -z "${1:-}" || -z "${2:-}" ]]; then
     usage 1
+fi
+
+if ! wget -q -O GB_Release_Number https://ftp.ncbi.nlm.nih.gov/genbank/GB_Release_Number; then
+    echo "Warning: Could not fetch GenBank version, using default."
+    GENBANK_VERSION="latest"
+else
+    GENBANK_VERSION=$(< GB_Release_Number)
 fi
 
 RAW_INPUT="$1"
