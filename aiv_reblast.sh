@@ -70,6 +70,7 @@ if [[ "$REMOTE_MODE" == "true" ]]; then
          -entrez_query "197911[taxid] OR 2955291[taxid] OR 11320[taxid]" \
          -outfmt "6 qseqid sacc sstrand bitscore stitle" > "$blast_results"
 else
+  export BLASTDB="/mnt/micke_ssd/resources"
   blastn -query "$INPUT_FILE" -db "$DB_NAME" -max_target_seqs 5 -max_hsps 1 \
          -taxids 197911,2955291,11320 \
          -num_threads "$THREADS"\
