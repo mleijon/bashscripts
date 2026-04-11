@@ -12,23 +12,34 @@ fi
 REMOTE_MODE=false
 DB_NAME="${3:-/mnt/micke_ssd/resources/VRL_$GENBANK_VERSION}"
 
-while getopts "r" opt; do
+while getopts "rh" opt; do
   case $opt in
-    r)
-      REMOTE_MODE=true
-      ;;
-    \?)
-      echo "Invalid option: -$OPTARG" >&2
-      exit 1
-      ;;
+    r) REMOTE_MODE=true ;;
+    h) # Explicit help request
+       usage ;;
+    \?) exit 1 ;;
   esac
 done
 
 shift $((OPTIND -1))
 
+usage() {
+    echo "Usage: $(basename "$0") [-r] <input.fasta> <output_directory> [<db_path>]"
+    echo ""
+    echo "Arguments:"
+    echo "  <input.fasta>             Input FASTA file containing Influenza sequences"
+    echo "  <output_directory>        Directory where results will be saved"
+    echo "  [<db_path>]               Optional: Path to local BLAST database"
+    echo ""
+    echo "Options:"
+    echo "  -r                        Use remote NCBI BLAST (requires internet)"
+    echo "  -h                        Show this help message"
+    exit "${1:-0}"
+}
+
+# Then trigger it if args are missing:
 if [[ -z "${1:-}" || -z "${2:-}" ]]; then
-    echo "Usage: $0 [-r] <input.fasta> <output_directory> [<blast database location>]"
-    exit 1
+    usage 1
 fi
 
 RAW_INPUT="$1"
@@ -53,7 +64,7 @@ trap 'rm -f "$blast_results" "$seen_list" "$INPUT_FILE"' EXIT
 
 if [[ "$REMOTE_MODE" == "true" ]]; then
   echo "Sending batch request to NCBI (Remote)..."
-  blastn -query "$INPUT_FILE" -db "$DB_NAME" -max_target_seqs 5 -max_hsps 1 \
+  blastn -query "$INPUT_FILE" -db nt -max_target_seqs 5 -max_hsps 1 \
          -remote \
          -entrez_query "197911[taxid] OR 2955291[taxid] OR 11320[taxid]" \
          -num_threads "$THREADS"\
