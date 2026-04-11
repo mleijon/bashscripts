@@ -3,6 +3,19 @@
 set -ueo pipefail
 
 THREADS=$(grep -c 'processor' /proc/cpuinfo)
+usage() {
+    echo "Usage: $(basename "$0") [-r] <input.fasta> <output_directory> [<db_path>]"
+    echo ""
+    echo "Arguments:"
+    echo "  <input.fasta>             Input FASTA file containing Influenza sequences"
+    echo "  <output_directory>        Directory where results will be saved"
+    echo "  [<db_path>]               Optional: Path to local BLAST database"
+    echo ""
+    echo "Options:"
+    echo "  -r                        Use remote NCBI BLAST (requires internet)"
+    echo "  -h                        Show this help message"
+    exit "${1:-0}"
+}
 if ! wget -q -O GB_Release_Number https://ftp.ncbi.nlm.nih.gov/genbank/GB_Release_Number; then
     echo "Warning: Could not fetch GenBank version, using default."
     GENBANK_VERSION="latest"
@@ -22,20 +35,6 @@ while getopts "rh" opt; do
 done
 
 shift $((OPTIND -1))
-
-usage() {
-    echo "Usage: $(basename "$0") [-r] <input.fasta> <output_directory> [<db_path>]"
-    echo ""
-    echo "Arguments:"
-    echo "  <input.fasta>             Input FASTA file containing Influenza sequences"
-    echo "  <output_directory>        Directory where results will be saved"
-    echo "  [<db_path>]               Optional: Path to local BLAST database"
-    echo ""
-    echo "Options:"
-    echo "  -r                        Use remote NCBI BLAST (requires internet)"
-    echo "  -h                        Show this help message"
-    exit "${1:-0}"
-}
 
 # Then trigger it if args are missing:
 if [[ -z "${1:-}" || -z "${2:-}" ]]; then
@@ -58,7 +57,7 @@ MASTER_CSV="${OUT_DIR}/${BASE_NAME}_master_summary.csv"
 blast_results=$(mktemp)
 seen_list=$(mktemp)
 # Cleanup temp files on exit
-trap 'rm -f "$blast_results" "$seen_list" "$INPUT_FILE"' EXIT
+trap 'rm -f "$blast_results" "$seen_list" "$INPUT_FILE" GB_Release_Number' EXIT
 
 # --- STEP 2: Run Batch BLAST (using cleaned input) ---
 
@@ -67,7 +66,6 @@ if [[ "$REMOTE_MODE" == "true" ]]; then
   blastn -query "$INPUT_FILE" -db nt -max_target_seqs 5 -max_hsps 1 \
          -remote \
          -entrez_query "197911[taxid] OR 2955291[taxid] OR 11320[taxid]" \
-         -num_threads "$THREADS"\
          -outfmt "6 qseqid sacc sstrand bitscore stitle" > "$blast_results"
 else
   blastn -query "$INPUT_FILE" -db "$DB_NAME" -max_target_seqs 5 -max_hsps 1 \
