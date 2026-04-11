@@ -3,17 +3,19 @@
 set -ueo pipefail
 
 THREADS=$(grep -c 'processor' /proc/cpuinfo)
-wget -q -O GB_Release_Number https://ftp.ncbi.nlm.nih.gov/genbank/GB_Release_Number
-GENBANK_VERSION=$(< GB_Release_Number)
+if ! wget -q -O GB_Release_Number https://ftp.ncbi.nlm.nih.gov/genbank/GB_Release_Number; then
+    echo "Warning: Could not fetch GenBank version, using default."
+    GENBANK_VERSION="latest"
+else
+    GENBANK_VERSION=$(< GB_Release_Number)
+fi
 REMOTE_MODE=false
 DB_NAME="${3:-/mnt/micke_ssd/resources/VRL_$GENBANK_VERSION}"
-DB_NAME="/mnt/micke_ssd/resources/VRL_$GENBANK_VERSION"
 
 while getopts "r" opt; do
   case $opt in
     r)
       REMOTE_MODE=true
-      export NCBI_API_KEY="11a4df7a92bf7aef31e2ba1f4570300f6009"
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2

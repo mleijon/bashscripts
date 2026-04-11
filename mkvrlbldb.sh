@@ -4,6 +4,7 @@ set -ueo pipefail
 # --- CONFIGURATION ---
 echo "Fetching GenBank version..."
 wget -q -O GB_Release_Number https://ftp.ncbi.nlm.nih.gov/genbank/GB_Release_Number
+trap 'rm -f GB_Release_Number' EXIT
 GENBANK_VERSION=$(< GB_Release_Number)
 DB_NAME="VRL_$GENBANK_VERSION"
 OUT_DIR="/mnt/micke_ssd/resources"
@@ -69,6 +70,14 @@ if [ "$SHOULD_BUILD" = true ]; then
         -title "Viral GenBank $GENBANK_VERSION" \
         -out "$DB_NAME" \
         -parse_seqids
+    echo "------------------------------------------------"
+    echo "Step 4: Updating BLAST alias file (VRL_latest.nal)"
+    echo "------------------------------------------------"
+    cat > "VRL_latest.nal" <<EOF
+# BLAST Library Alias File
+TITLE Viral GenBank Latest
+DBLIST $DB_NAME
+EOF
 else
     echo "Database $DB_NAME is already up to date. Skipping build step."
 fi
