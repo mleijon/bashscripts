@@ -3,13 +3,26 @@
 set -ueo pipefail
 
 THREADS=$(grep -c 'processor' /proc/cpuinfo)
+REMOTE_MODE=false
 DB_NAME="/mnt/micke_ssd/resources/VRL_270.0"
 
-# NCBI API Key (Ensure this is valid)
-#export NCBI_API_KEY="11a4df7a92bf7aef31e2ba1f4570300f6009"
+while getopts "r" opt; do
+  case $opt in
+    r)
+      REMOTE_MODE=true
+      export NCBI_API_KEY="11a4df7a92bf7aef31e2ba1f4570300f6009"
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+  esac
+done
+
+shift $((OPTIND -1))
 
 if [[ -z "${1:-}" || -z "${2:-}" ]]; then
-    echo "Usage: $0 <input.fasta> <output_directory>"
+    echo "Usage: $0 [-r] <input.fasta> <output_directory>"
     exit 1
 fi
 
@@ -34,11 +47,19 @@ trap 'rm -f "$blast_results" "$seen_list" "$INPUT_FILE"' EXIT
 echo "Sending batch request to NCBI (Remote)..."
 
 # --- STEP 2: Run Batch BLAST (using cleaned input) ---
-# Filtered for viruses (txid10239) and remote execution
-blastn -query "$INPUT_FILE" -db "$DB_NAME" -max_target_seqs 5 -max_hsps 1 \
-        -taxids 2955291,11320 -num_threads "$THREADS"\
-        -outfmt "6 qseqid sacc sstrand bitscore stitle" > "$blast_results"
 
+if [[ "$REMOTE_MODE" == "true" ]]; then
+  blastn -query "$INPUT_FILE" -db "$DB_NAME" -max_target_seqs 5 -max_hsps 1 \
+         -remote
+         -entrez_query "197911[taxid] OR 2955291[taxid] OR 11320[taxid]" \
+         -num_threads "$THREADS"\
+         -outfmt "6 qseqid sacc sstrand bitscore stitle" > "$blast_results"
+else
+  blastn -query "$INPUT_FILE" -db "$DB_NAME" -max_target_seqs 5 -max_hsps 1 \
+         -taxids 197911,2955291,11320 \
+         -num_threads "$THREADS"\
+         -outfmt "6 qseqid sacc sstrand bitscore stitle" > "$blast_results"
+fi
 # --- STEP 3: Process and Sort results ---
 while IFS=$'\t' read -r qseqid sacc strand score stitle; do
 
