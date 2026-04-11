@@ -3,6 +3,8 @@
 set -ueo pipefail
 
 THREADS=$(grep -c 'processor' /proc/cpuinfo)
+trap 'rm -f "$blast_results" "$seen_list" "$INPUT_FILE" GB_Release_Number' EXIT
+
 usage() {
     echo "Usage: $(basename "$0") [-r] <input.fasta> <output_directory> [<db_path>]"
     echo ""
@@ -16,6 +18,7 @@ usage() {
     echo "  -h                        Show this help message"
     exit "${1:-0}"
 }
+
 if ! wget -q -O GB_Release_Number https://ftp.ncbi.nlm.nih.gov/genbank/GB_Release_Number; then
     echo "Warning: Could not fetch GenBank version, using default."
     GENBANK_VERSION="latest"
@@ -23,7 +26,6 @@ else
     GENBANK_VERSION=$(< GB_Release_Number)
 fi
 REMOTE_MODE=false
-DB_NAME="${3:-/mnt/micke_ssd/resources/VRL_$GENBANK_VERSION}"
 
 while getopts "rh" opt; do
   case $opt in
@@ -43,21 +45,20 @@ fi
 
 RAW_INPUT="$1"
 OUT_DIR="$2"
+DB_NAME="${3:-/mnt/micke_ssd/resources/VRL_$GENBANK_VERSION}"
 mkdir -p "$OUT_DIR"
 
 # --- STEP 1: Create a cleaned temporary FASTA ---
 # Truncates headers at the first space/semicolon for tool compatibility
 INPUT_FILE=$(mktemp)
 # First clean the headers, then filter for Influenza records
-sed 's/[ ;].*//' "$RAW_INPUT" | grep -iA1 "influenza" | grep -v "^--" > "$INPUT_FILE"
-
+grep -iA1 "influenza" "$RAW_INPUT" | sed 's/[ ;].*//' | grep -v "^--" > "$INPUT_FILE"
 BASE_NAME=$(basename "${RAW_INPUT%.*}")
 MASTER_CSV="${OUT_DIR}/${BASE_NAME}_master_summary.csv"
 
 blast_results=$(mktemp)
 seen_list=$(mktemp)
 # Cleanup temp files on exit
-trap 'rm -f "$blast_results" "$seen_list" "$INPUT_FILE" GB_Release_Number' EXIT
 
 # --- STEP 2: Run Batch BLAST (using cleaned input) ---
 
