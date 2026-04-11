@@ -3,8 +3,11 @@
 set -ueo pipefail
 
 THREADS=$(grep -c 'processor' /proc/cpuinfo)
+wget -q -O GB_Release_Number https://ftp.ncbi.nlm.nih.gov/genbank/GB_Release_Number
+GENBANK_VERSION=$(< GB_Release_Number)
 REMOTE_MODE=false
-DB_NAME="/mnt/micke_ssd/resources/VRL_270.0"
+DB_NAME="${3:-/mnt/micke_ssd/resources/VRL_$GENBANK_VERSION}"
+DB_NAME="/mnt/micke_ssd/resources/VRL_$GENBANK_VERSION"
 
 while getopts "r" opt; do
   case $opt in
@@ -22,7 +25,7 @@ done
 shift $((OPTIND -1))
 
 if [[ -z "${1:-}" || -z "${2:-}" ]]; then
-    echo "Usage: $0 [-r] <input.fasta> <output_directory>"
+    echo "Usage: $0 [-r] <input.fasta> <output_directory> [<blast database location>]"
     exit 1
 fi
 
@@ -44,13 +47,12 @@ seen_list=$(mktemp)
 # Cleanup temp files on exit
 trap 'rm -f "$blast_results" "$seen_list" "$INPUT_FILE"' EXIT
 
-echo "Sending batch request to NCBI (Remote)..."
-
 # --- STEP 2: Run Batch BLAST (using cleaned input) ---
 
 if [[ "$REMOTE_MODE" == "true" ]]; then
+  echo "Sending batch request to NCBI (Remote)..."
   blastn -query "$INPUT_FILE" -db "$DB_NAME" -max_target_seqs 5 -max_hsps 1 \
-         -remote
+         -remote \
          -entrez_query "197911[taxid] OR 2955291[taxid] OR 11320[taxid]" \
          -num_threads "$THREADS"\
          -outfmt "6 qseqid sacc sstrand bitscore stitle" > "$blast_results"
