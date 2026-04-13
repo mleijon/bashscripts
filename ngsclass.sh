@@ -206,7 +206,7 @@ for f in "${INPUTS[@]}"; do
         fi
 
         # Extract Fastas (Now automatically includes :cov_XX in headers)
-        for K in Viruses Eukaryota Bacteria; do
+        for K in Viruses Eukaryota Bacteria Archaea; do
             awk -v K="$K" -v FS='\t' '$6 == K { gsub(/ /,"_"); print ">"$1":"$5"\n"$2 }' "$tsv_out" \
             > "$DMND_DIR/${sample_name}_${K,,}.fa"
         done
