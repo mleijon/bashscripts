@@ -212,7 +212,7 @@ for f in "${INPUTS[@]}"; do
         done
 
         # Catch-all for 'Other' (Non-standard kingdoms)
-        awk -v FS='\t' '!($6 ~ /Viruses|Eukaryota|Bacteria/Archaea/) { gsub(/ /,"_"); print ">"$1":"$5"\n"$2 }' "$tsv_out" \
+        awk -v FS='\t' '!($6 ~ /Viruses|Eukaryota|Bacteria|Archaea/) { gsub(/ /,"_"); print ">"$1":"$5"\n"$2 }' "$tsv_out" \
         > "$DMND_DIR/${sample_name}_other.fa"
 
         gzip "$tsv_out"
