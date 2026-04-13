@@ -61,7 +61,17 @@ while getopts "x:a:f:p:b:c:r:h" opt; do
     esac
 done
 
-# --- 3. Directory Setup ---
+# --- 3. Input Check & Directory Setup ---
+# This pattern handles both "_R1_" and "_R1." conventions
+INPUT_PATTERN="./fa/*_R1[._]*.fastq*"
+
+# Check if any files match the pattern before proceeding
+if ! ls $INPUT_PATTERN >/dev/null 2>&1; then
+    echo "❌ Error: No input files found in ./fa/ matching pattern: $INPUT_PATTERN"
+    echo "Please check your filenames and ensure you are in the correct directory."
+    exit 1
+fi
+
 TRIM_DIR="./trimmed"; ASM_DIR="./assembly"; DERE_DIR="./dereplicated"; COV_DIR="./coverage"
 mkdir -p "$ASM_DIR" "$DMND_DIR" "$COV_DIR" "./logs"
 [[ "$RAW_MODE" == "n" ]] && mkdir -p "$TRIM_DIR" || mkdir -p "$DERE_DIR"
@@ -71,9 +81,9 @@ mkdir -p "$ASM_DIR" "$DMND_DIR" "$COV_DIR" "./logs"
 # ==============================================================================
 if [[ "$RAW_MODE" == "n" ]]; then
     echo "✂️ Mode: Trimming (Preparing for Assembly)"
-    for f1 in ./fa/*_R1_*.fastq*; do
+    for f1 in ./fa/*_R1*.fastq*; do
         [ -e "$f1" ] || continue
-        f2="${f1/_R1_/_R2_}"
+        f2="${f1/_R1/_R2}"
         sample_name=$(basename "$f1" | sed 's/_L.*//')
         out_p="$TRIM_DIR/${sample_name}"
         if [[ ! -f "${out_p}_1P.fastq.gz" ]]; then
@@ -87,14 +97,14 @@ if [[ "$RAW_MODE" == "n" ]]; then
     done
 else
     echo "🌀 Mode: Raw Read Dereplication (USEARCH)"
-    for f1 in ./fa/*_R1_*.fastq*; do
+    for f1 in ./fa/*_R1*.fastq*; do
         [ -e "$f1" ] || continue
         sample_name=$(basename "$f1" | sed 's/_L.*//')
         derep_f="$DERE_DIR/${sample_name}_derep.fa"
         if [[ ! -f "$derep_f" ]]; then
             echo "   Dereplicating: $sample_name"
             temp_fq="$DERE_DIR/${sample_name}_temp.fastq"
-            gzip -dc -f "$f1" "${f1/_R1_/_R2_}" > "$temp_fq"
+            gzip -dc -f "$f1" "${f1/_R1/_R2}" > "$temp_fq"
             "$USEARCH" -fastx_uniques "$temp_fq" -fastaout "$derep_f" \
                 -sizeout -relabel "${sample_name}_" -threads "$THREADS" \
                 &> "./logs/$sample_name.usearch.log"
