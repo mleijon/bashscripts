@@ -61,14 +61,16 @@ while getopts "x:a:f:p:b:c:r:h" opt; do
     esac
 done
 
-# --- 3. Input Check & Directory Setup ---
-# This pattern handles both "_R1_" and "_R1." conventions
+# --- 3. Input Validation & Directory Setup ---
+# This pattern matches both "R1_001" and "R1.fastq" styles
 INPUT_PATTERN="./fa/*_R1[._]*.fastq*"
 
-# Check if any files match the pattern before proceeding
-if ! ls $INPUT_PATTERN >/dev/null 2>&1; then
-    echo "❌ Error: No input files found in ./fa/ matching pattern: $INPUT_PATTERN"
-    echo "Please check your filenames and ensure you are in the correct directory."
+# Check if any files match the pattern before doing anything else
+# We use a temporary array to check existence reliably
+files=($INPUT_PATTERN)
+if [ ! -e "${files[0]}" ]; then
+    echo "❌ Error: No input files found in ./fa/ matching: $INPUT_PATTERN"
+    echo "Ensure your files are in the 'fa' folder and follow R1/R2 naming."
     exit 1
 fi
 
@@ -81,8 +83,9 @@ mkdir -p "$ASM_DIR" "$DMND_DIR" "$COV_DIR" "./logs"
 # ==============================================================================
 if [[ "$RAW_MODE" == "n" ]]; then
     echo "✂️ Mode: Trimming (Preparing for Assembly)"
-    for f1 in ./fa/*_R1*.fastq*; do
+    for f1 in $INPUT_PATTERN; do
         [ -e "$f1" ] || continue
+        # Robust replacement: change _R1 to _R2 regardless of what follows (._)
         f2="${f1/_R1/_R2}"
         sample_name=$(basename "$f1" | sed 's/_L.*//')
         out_p="$TRIM_DIR/${sample_name}"
@@ -97,13 +100,14 @@ if [[ "$RAW_MODE" == "n" ]]; then
     done
 else
     echo "🌀 Mode: Raw Read Dereplication (USEARCH)"
-    for f1 in ./fa/*_R1*.fastq*; do
+    for f1 in $INPUT_PATTERN; do
         [ -e "$f1" ] || continue
         sample_name=$(basename "$f1" | sed 's/_L.*//')
         derep_f="$DERE_DIR/${sample_name}_derep.fa"
         if [[ ! -f "$derep_f" ]]; then
             echo "   Dereplicating: $sample_name"
             temp_fq="$DERE_DIR/${sample_name}_temp.fastq"
+            # Robust replacement for R2 file
             gzip -dc -f "$f1" "${f1/_R1/_R2}" > "$temp_fq"
             "$USEARCH" -fastx_uniques "$temp_fq" -fastaout "$derep_f" \
                 -sizeout -relabel "${sample_name}_" -threads "$THREADS" \
