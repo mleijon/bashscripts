@@ -62,15 +62,18 @@ while getopts "x:a:f:p:b:c:r:h" opt; do
 done
 
 # --- 3. Input Validation & Directory Setup ---
-# This pattern matches both "R1_001" and "R1.fastq" styles
-INPUT_PATTERN="./fa/*_R1[._]*.fastq*"
+# This pattern matches _R1.fastq, _R1_001.fastq, and _R1_S1.fastq
+INPUT_PATTERN="./fa/*_R1*fastq*"
 
-# Check if any files match the pattern before doing anything else
-# We use a temporary array to check existence reliably
+# Use an array to check for matches safely with set -u
+# We temporarily enable nullglob so the array is empty if no files match
+shopt -s nullglob
 files=($INPUT_PATTERN)
-if [ ! -e "${files[0]}" ]; then
+shopt -u nullglob
+
+if [ ${#files[@]} -eq 0 ]; then
     echo "❌ Error: No input files found in ./fa/ matching: $INPUT_PATTERN"
-    echo "Ensure your files are in the 'fa' folder and follow R1/R2 naming."
+    echo "Ensure your files are in the 'fa' folder and contain '_R1'."
     exit 1
 fi
 
@@ -85,7 +88,7 @@ if [[ "$RAW_MODE" == "n" ]]; then
     echo "✂️ Mode: Trimming (Preparing for Assembly)"
     for f1 in $INPUT_PATTERN; do
         [ -e "$f1" ] || continue
-        # Robust replacement: change _R1 to _R2 regardless of what follows (._)
+        # Robustly swap R1 for R2 regardless of following characters
         f2="${f1/_R1/_R2}"
         sample_name=$(basename "$f1" | sed 's/_L.*//')
         out_p="$TRIM_DIR/${sample_name}"
@@ -107,7 +110,6 @@ else
         if [[ ! -f "$derep_f" ]]; then
             echo "   Dereplicating: $sample_name"
             temp_fq="$DERE_DIR/${sample_name}_temp.fastq"
-            # Robust replacement for R2 file
             gzip -dc -f "$f1" "${f1/_R1/_R2}" > "$temp_fq"
             "$USEARCH" -fastx_uniques "$temp_fq" -fastaout "$derep_f" \
                 -sizeout -relabel "${sample_name}_" -threads "$THREADS" \
