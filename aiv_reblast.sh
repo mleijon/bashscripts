@@ -3,7 +3,32 @@
 set -ueo pipefail
 
 THREADS=$(grep -c 'processor' /proc/cpuinfo)
-trap 'rm -f "$blast_results" "$seen_list" "$INPUT_FILE" GB_Release_Number' EXIT
+
+# Define the error handler
+error_report() {
+    local exit_code=$?
+    local line_number=$1
+    # Avoid reporting successful exits or manual interruptions (Ctrl+C)
+    if [ "$exit_code" -ne 0 ] && [ "$exit_code" -ne 130 ]; then
+        echo ""
+        echo "----------------------------------------------------------"
+        echo "❌ ERROR: Script failed at line $line_number"
+        echo "Exit Code: $exit_code"
+        echo "The script stopped because a command failed or a variable was undefined."
+        echo "----------------------------------------------------------"
+    fi
+}
+
+# Define cleanup function
+cleanup() {
+    rm -f "$blast_results" "$seen_list" "$INPUT_FILE" GB_Release_Number 2>/dev/null
+}
+
+# 1. Capture the line number on any error
+trap 'error_report $LINENO' ERR
+
+# 2. Run cleanup regardless of how the script ends
+trap cleanup EXIT
 
 usage() {
     echo "Usage: $(basename "$0") [-r] <input.fasta> <output_directory> [<db_path>]"
