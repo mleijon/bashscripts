@@ -90,6 +90,7 @@ fi
 # e.g., /mnt/.../VRL_270.0.nsq -> /mnt/.../VRL_270.0
 DB_NAME="${LATEST_DB_FILE%.*}"
 LOCAL_VERSION=$(basename "$DB_NAME")
+LOCAL_VERSION="${LOCAL_VERSION#*_}"
 
 # 4. Compare and notify if using an older version
 if [[ "$LOCAL_VERSION" != "VRL_$REMOTE_VERSION" ]]; then
