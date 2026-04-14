@@ -74,7 +74,6 @@ fi
 # 2. Find the latest local database file actually present
 # We look for versioned .nsq or .nal files, specifically excluding the "latest" alias
 LATEST_DB_FILE=$(ls -v "$RESOURCES_DIR"/VRL_[0-9]*.nsq "$RESOURCES_DIR"/VRL_[0-9]*.nal 2>/dev/null | tail -n 1)
-echo $LATEST_DB_FILE
 
 # If no versioned files are found, check if the generic 'latest' alias exists
 if [[ -z "$LATEST_DB_FILE" ]]; then
@@ -86,16 +85,25 @@ if [[ -z "$LATEST_DB_FILE" ]]; then
     fi
 fi
 
-# 3. Extract the DB name (remove the extension)
-# e.g., /mnt/.../VRL_270.0.nsq -> /mnt/.../VRL_270.0
-DB_NAME="${LATEST_DB_FILE%.*}"
-echo $DB_NAME
+# 3. Extract the DB name and Version
+# Example: /path/VRL_270.0.24.nsq -> FULL_BASE is /path/VRL_270.0.24
+FULL_BASE="${LATEST_DB_FILE%.*}"
+
+# If the filename ends in a two-digit volume number (e.g., .00 through .99), trim it.
+# This ensures DB_NAME is the correct prefix (VRL_270.0) for the BLAST command.
+if [[ "$FULL_BASE" =~ \.[0-9]{2}$ ]]; then
+    DB_NAME="${FULL_BASE%.*}"
+else
+    DB_NAME="$FULL_BASE"
+fi
+
+# Extract the version number (e.g., VRL_270.0 -> 270.0)
 LOCAL_VERSION=$(basename "$DB_NAME")
 LOCAL_VERSION="${LOCAL_VERSION#*_}"
-LOCAL_VERSION="${LOCAL_VERSION%.*}"
 
 # 4. Compare and notify if using an older version
-if [[ "$LOCAL_VERSION" != "VRL_$REMOTE_VERSION" ]]; then
+# Note: No "VRL_" in the comparison so it matches the numbers exactly
+if [[ "$LOCAL_VERSION" != "$REMOTE_VERSION" ]]; then
     echo "------------------------------------------------"
     echo "📢 NOTICE: A newer GenBank release ($REMOTE_VERSION) is available."
     echo "Using existing local release: $LOCAL_VERSION"
