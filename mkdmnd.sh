@@ -3,7 +3,7 @@
 set -ueo pipefail
 
 # --- CONFIGURATION ---
-DB_NAME="nr_clst"
+DB_NAME="nr_cluster_seq"
 DEST_DIR="/mnt/micke_ssd/resources"
 NRCLUST_PATH="https://ftp.ncbi.nlm.nih.gov/blast/db/experimental/"
 TAXONOMY_PATH="https://ftp.ncbi.nlm.nih.gov/pub/taxonomy"
