@@ -62,17 +62,42 @@ if [[ -z "${1:-}" || -z "${2:-}" ]]; then
     usage 1
 fi
 
+# 1. Fetch the remote GenBank version
+RESOURCES_DIR="/mnt/micke_ssd/resources"
 if ! wget -q -O GB_Release_Number https://ftp.ncbi.nlm.nih.gov/genbank/GB_Release_Number; then
-    echo "Warning: Could not fetch GenBank version, using default."
-    GENBANK_VERSION="latest"
+    echo "Warning: Could not fetch remote GenBank version."
+    REMOTE_VERSION="unknown"
 else
-    GENBANK_VERSION=$(< GB_Release_Number)
+    REMOTE_VERSION=$(< GB_Release_Number)
 fi
+
+# 2. Find the latest local database file actually present
+# We look for .nsq (index) or .nal (alias) files
+LATEST_DB_FILE=$(ls -v "$RESOURCES_DIR"/VRL_*.nsq "$RESOURCES_DIR"/VRL_*.nal 2>/dev/null | tail -n 1)
+
+if [[ -z "$LATEST_DB_FILE" ]]; then
+    echo "❌ ERROR: No local BLAST databases found in $RESOURCES_DIR"
+    exit 1
+fi
+
+# 3. Extract the DB name (remove the extension)
+# e.g., /mnt/.../VRL_270.0.nsq -> /mnt/.../VRL_270.0
+DB_NAME="${LATEST_DB_FILE%.*}"
+LOCAL_VERSION=$(basename "$DB_NAME")
+
+# 4. Compare and notify if using an older version
+if [[ "$LOCAL_VERSION" != "VRL_$REMOTE_VERSION" ]]; then
+    echo "------------------------------------------------"
+    echo "📢 NOTICE: A newer GenBank release ($REMOTE_VERSION) is available."
+    echo "Using existing local release: $LOCAL_VERSION"
+    echo "------------------------------------------------"
+fi
+
+# Final variables for BLAST
+DB_DIR=$(dirname "$DB_NAME")
 
 RAW_INPUT="$1"
 OUT_DIR="$2"
-DB_NAME="${3:-/mnt/micke_ssd/resources/VRL_$GENBANK_VERSION}"
-DB_DIR=$(dirname "$DB_NAME")
 mkdir -p "$OUT_DIR"
 
 # --- STEP 1: Create a cleaned temporary FASTA ---
