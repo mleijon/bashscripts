@@ -70,17 +70,16 @@ if [ "$SHOULD_BUILD" = true ]; then
         -title "Viral GenBank $GENBANK_VERSION" \
         -out "$DB_NAME" \
         -parse_seqids
-    echo "------------------------------------------------"
-    echo "Step 4: Updating BLAST alias file (VRL_latest.nal)"
-    echo "------------------------------------------------"
-    cat > "VRL_latest.nal" <<EOF
+else
+    echo "Database $DB_NAME is already up to date. Skipping build step."
+fi
+echo "------------------------------------------------"
+echo "Step 4: Updating BLAST alias file (VRL_latest.nal)"
+echo "------------------------------------------------"
+cat > "VRL_latest.nal" <<EOF
 # BLAST Library Alias File
 TITLE Viral GenBank Latest
 DBLIST $DB_NAME
 EOF
-else
-    echo "Database $DB_NAME is already up to date. Skipping build step."
-fi
-
 echo "------------------------------------------------"
 echo "Success! Database is ready in: $OUT_DIR/$DB_NAME"
