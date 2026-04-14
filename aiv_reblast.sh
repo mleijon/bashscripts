@@ -73,7 +73,7 @@ fi
 
 # 2. Find the latest local database file actually present
 # We look for versioned .nsq or .nal files, specifically excluding the "latest" alias
-LATEST_DB_FILE=$(ls -v *.nal|grep -v 'latest' 2>/dev/null)
+LATEST_DB_FILE=$(ls -v "$RESOURCES_DIR"/*.nal|grep -v 'latest' 2>/dev/null)
 LATEST_DB_FILE=$(basename "$LATEST_DB_FILE")
 
 # If no versioned files are found, check if the generic 'latest' alias exists
