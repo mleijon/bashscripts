@@ -72,12 +72,17 @@ else
 fi
 
 # 2. Find the latest local database file actually present
-# We look for .nsq (index) or .nal (alias) files
-LATEST_DB_FILE=$(ls -v "$RESOURCES_DIR"/VRL_*.nsq "$RESOURCES_DIR"/VRL_*.nal 2>/dev/null | tail -n 1)
+# We look for versioned .nsq or .nal files, specifically excluding the "latest" alias
+LATEST_DB_FILE=$(ls -v "$RESOURCES_DIR"/VRL_[0-9]*.nsq "$RESOURCES_DIR"/VRL_[0-9]*.nal 2>/dev/null | tail -n 1)
 
+# If no versioned files are found, check if the generic 'latest' alias exists
 if [[ -z "$LATEST_DB_FILE" ]]; then
-    echo "❌ ERROR: No local BLAST databases found in $RESOURCES_DIR"
-    exit 1
+    if [[ -f "$RESOURCES_DIR/VRL_latest.nal" ]]; then
+        LATEST_DB_FILE="$RESOURCES_DIR/VRL_latest.nal"
+    else
+        echo "❌ ERROR: No local BLAST databases found in $RESOURCES_DIR"
+        exit 1
+    fi
 fi
 
 # 3. Extract the DB name (remove the extension)
