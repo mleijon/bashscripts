@@ -89,6 +89,8 @@ fi
 # 3. Extract the DB name (remove the extension)
 # e.g., /mnt/.../VRL_270.0.nsq -> /mnt/.../VRL_270.0
 DB_NAME="${LATEST_DB_FILE%.*}"
+DB_NAME="${LATEST_DB_FILE%.*}"
+DB_NAME="${LATEST_DB_FILE#VRL_}"
 LOCAL_VERSION=$(basename "$DB_NAME")
 
 # 4. Compare and notify if using an older version
