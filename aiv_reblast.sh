@@ -72,6 +72,7 @@ fi
 RAW_INPUT="$1"
 OUT_DIR="$2"
 DB_NAME="${3:-/mnt/micke_ssd/resources/VRL_$GENBANK_VERSION}"
+export BLASTDB="$DB_NAME"
 mkdir -p "$OUT_DIR"
 
 # --- STEP 1: Create a cleaned temporary FASTA ---
