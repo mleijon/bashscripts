@@ -74,6 +74,7 @@ fi
 # 2. Find the latest local database file actually present
 # We look for versioned .nsq or .nal files, specifically excluding the "latest" alias
 LATEST_DB_FILE=$(ls -v "$RESOURCES_DIR"/VRL_[0-9]*.nsq "$RESOURCES_DIR"/VRL_[0-9]*.nal 2>/dev/null | tail -n 1)
+echo $LATEST_DB_FILE
 
 # If no versioned files are found, check if the generic 'latest' alias exists
 if [[ -z "$LATEST_DB_FILE" ]]; then
