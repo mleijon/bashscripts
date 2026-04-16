@@ -13,7 +13,7 @@ if [[ "${CONDA_DEFAULT_ENV:-}" != "ngsclass" ]]; then
 fi
 
 # --- 1. Global Configuration ---
-DIAMOND_DB="/mnt/micke_ssd/resources/nr_cluster_seq_2026_270.0"
+DIAMOND_DB="/mnt/micke_ssd/resources/nr_cluster_seq_2026_271.0"
 USEARCH="usearch11.0.667_i86linux64"
 
 THREADS=$(grep -c 'processor' /proc/cpuinfo)
