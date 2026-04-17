@@ -192,7 +192,7 @@ for f in "${INPUTS[@]}"; do
         echo "🔍 Classifying: $sample_name"
         diamond blastx -d "$DIAMOND_DB" -q "$f" -o "$tsv_out" \
             --max-target-seqs 1 --evalue 1E-5 -b "$DIAMOND_BLOCK" -c "$DIAMOND_CHUNKS" \
-            --outfmt 6 qseqid full_qseq evalue staxids sscinames sskingdoms skingdoms sphylums \
+            --outfmt 6 qseqid full_qseq evalue staxids sscinames slineages skingdoms sphylums \
             &> "./logs/$sample_name.diamond.log"
 
         # --- ENRICH TSV WITH COVERAGE ---
@@ -205,10 +205,10 @@ for f in "${INPUTS[@]}"; do
             ' "$cov_file" "$tsv_out" > "${tsv_out}.tmp" && mv "${tsv_out}.tmp" "$tsv_out"
         fi
 
-        # Extract Fastas (Now automatically includes :cov_XX in headers)
+        # Extract Fastas (Now using partial match ~ for lineages)
         for K in Viruses Eukaryota Bacteria Archaea; do
-            awk -v K="$K" -v FS='\t' '$6 == K { gsub(/ /,"_"); print ">"$1":"$5"\n"$2 }' "$tsv_out" \
-            > "$DMND_DIR/${sample_name}_${K,,}.fa"
+            awk -v K="$K" -v FS='\t' '$6 ~ K { gsub(/ /,"_"); print ">"$1":"$5"\n"$2 }' "$tsv_out" \
+                > "$DMND_DIR/${sample_name}_${K,,}.fa"
         done
 
         # Catch-all for 'Other' (Non-standard kingdoms)
