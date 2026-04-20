@@ -87,7 +87,7 @@ blastn -query "$QUERY" \
 if [ "$USE_EXCLUSION" = true ]; then
     if [[ -f "$EXCLUDED_FILE" && -s "$EXCLUDED_FILE" ]]; then
         echo "--> Applying exclusion filter from $EXCLUDED_FILE..."
-        grep -v -F -f "$EXCLUDED_FILE" "$TSV_OUT" > "${TSV_OUT}.tmp" && mv "${TSV_OUT}.tmp" "$TSV_OUT"
+        grep -v -i -F -f "$EXCLUDED_FILE" "$TSV_OUT" > "${TSV_OUT}.tmp" && mv "${TSV_OUT}.tmp" "$TSV_OUT"
     else
         echo "Warning: -e set but $EXCLUDED_FILE not found or empty. Skipping filter."
     fi
