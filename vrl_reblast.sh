@@ -6,12 +6,12 @@ VERT_TAXIDS="$RESOURCE_DIR/vertebrate_virus_taxids.txt"
 MAMM_TAXIDS="$RESOURCE_DIR/mammal_virus_taxids.txt"
 
 usage() {
-    echo "Usage: $0 -q <query.fasta> -d <db_name> -o <output_file> [-h <v|m>]"
+    echo "Usage: $0 -q <query.fasta> -d <db_name> [-o <prefix>] [-h <v|m>]"
     echo ""
     echo "Options:"
-    echo "  -q    Query FASTA file"
+    echo "  -q    Query FASTA file (e.g., SampleName_R1_contigs.fasta)"
     echo "  -d    BLAST database name (in $RESOURCE_DIR)"
-    echo "  -o    Output prefix (for .tsv and .fasta)"
+    echo "  -o    Optional: Manual output prefix (default: extracted from -q)"
     echo "  -h    Host restriction: 'v' (vertebrates) or 'm' (mammals)"
     echo ""
     exit 1
@@ -20,6 +20,7 @@ usage() {
 # Initialize variables
 HOST_FLAG=""
 TAX_FILTER=""
+OUT_PREFIX=""
 
 while getopts "q:d:o:h:" opt; do
     case $opt in
@@ -31,15 +32,28 @@ while getopts "q:d:o:h:" opt; do
     esac
 done
 
-if [[ -z "$QUERY" || -z "$DB_NAME" || -z "$OUT_PREFIX" ]]; then
+if [[ -z "$QUERY" || -z "$DB_NAME" ]]; then
     usage
+fi
+
+# --- 1. Automatic Prefix Extraction ---
+# If -o is not provided, extract the sample name from the query filename
+if [[ -z "$OUT_PREFIX" ]]; then
+    QUERY_FILENAME=$(basename "$QUERY")
+    # This strips everything from _R1 onwards (e.g. SampleA_R1_vrl.fasta -> SampleA)
+    OUT_PREFIX="${QUERY_FILENAME%%_R1*}"
+
+    # Fallback: if _R1 wasn't found, just strip the extension
+    if [[ "$OUT_PREFIX" == "$QUERY_FILENAME" ]]; then
+        OUT_PREFIX="${QUERY_FILENAME%.*}"
+    fi
 fi
 
 DB_PATH="$RESOURCE_DIR/$DB_NAME"
 TSV_OUT="${OUT_PREFIX}.tsv"
 FASTA_OUT="${OUT_PREFIX}_top_hit.fasta"
 
-# --- 1. Host Filter Setup ---
+# --- 2. Host Filter Setup ---
 if [[ -n "$HOST_FLAG" ]]; then
     case "$HOST_FLAG" in
         v) TAX_FILTER="-taxidlist $VERT_TAXIDS" ;;
@@ -48,10 +62,8 @@ if [[ -n "$HOST_FLAG" ]]; then
     esac
 fi
 
-# --- 2. Run BLAST ---
-# Using -max_target_seqs 5 and -max_hsps 1 as requested
-# We include 'sstrand' in the output to check orientation
-echo "Running BLAST search..."
+# --- 3. Run BLAST ---
+echo "Running BLAST for Sample: $OUT_PREFIX"
 blastn -query "$QUERY" \
        -db "$DB_PATH" \
        -out "$TSV_OUT" \
@@ -61,36 +73,24 @@ blastn -query "$QUERY" \
        -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore sstrand staxids sscinames" \
        -num_threads $(nproc)
 
-# --- 5. Process Top Hits ---
+# --- 4. Process Top Hits ---
 if [[ ! -s "$TSV_OUT" ]]; then
-    echo "No hits found."
+    echo "No hits found for $OUT_PREFIX."
     exit 0
 fi
 
-echo "Processing top hit and checking orientation..."
-
 # Grab the first line (best hit)
 TOP_HIT=$(head -n 1 "$TSV_OUT")
-
-# Extract details from columns
 SSEQID=$(echo "$TOP_HIT" | awk '{print $2}')
 SSTRAND=$(echo "$TOP_HIT" | awk '{print $13}')
-SSTART=$(echo "$TOP_HIT" | awk '{print $9}')
-SEND=$(echo "$TOP_HIT" | awk '{print $10}')
 
-echo "Top Hit: $SSEQID ($SSTRAND orientation)"
-
-# Extract the sequence using blastdbcmd
-# If sstrand is 'minus', we use -strand minus to get the reverse complement
+# Extract and Orient the sequence
 if [[ "$SSTRAND" == "minus" ]]; then
-    echo "--> Orientation is reverse. Extracting Reverse Complement..."
+    echo "--> Top Hit: $SSEQID (Reverse). Extracting RC..."
     blastdbcmd -db "$DB_PATH" -entry "$SSEQID" -strand minus > "$FASTA_OUT"
 else
-    echo "--> Orientation is forward. Extracting as-is..."
+    echo "--> Top Hit: $SSEQID (Forward). Extracting..."
     blastdbcmd -db "$DB_PATH" -entry "$SSEQID" -strand plus > "$FASTA_OUT"
 fi
 
-echo "-------------------------------------------------------"
-echo "Process Complete."
-echo "Full table: $TSV_OUT"
-echo "Top hit FASTA: $FASTA_OUT"
+echo "Done. Results: $TSV_OUT and $FASTA_OUT"
