@@ -23,8 +23,9 @@ usage() {
 HOST_FLAG=""
 TAX_FILTER=""
 OUT_PREFIX=""
+# Default suffix if no host flag is used
+SUFFIX="viruses_rbl"
 
-# Removed 'd:' from getopts
 while getopts "q:o:h:" opt; do
     case $opt in
         q) QUERY="$OPTARG" ;;
@@ -34,7 +35,6 @@ while getopts "q:o:h:" opt; do
     esac
 done
 
-# Database check is now simplified
 if [[ -z "$QUERY" ]]; then
     usage
 fi
@@ -49,21 +49,30 @@ if [[ -z "$OUT_PREFIX" ]]; then
     fi
 fi
 
-DB_PATH="$RESOURCE_DIR/$DB_NAME"
-TSV_OUT="${OUT_PREFIX}.tsv"
-FASTA_OUT="${OUT_PREFIX}_top_hit.fasta"
-
-# --- 2. Host Filter Setup ---
+# --- 2. Host Filter Setup & Suffix Assignment ---
 if [[ -n "$HOST_FLAG" ]]; then
     case "$HOST_FLAG" in
-        v) TAX_FILTER="-taxidlist $VERT_TAXIDS" ;;
-        m) TAX_FILTER="-taxidlist $MAMM_TAXIDS" ;;
-        *) echo "Error: Invalid host option"; exit 1 ;;
+        v)
+            TAX_FILTER="-taxidlist $VERT_TAXIDS"
+            SUFFIX="vertebrate_viruses_rbl"
+            ;;
+        m)
+            TAX_FILTER="-taxidlist $MAMM_TAXIDS"
+            SUFFIX="mammal_viruses_rbl"
+            ;;
+        *)
+            echo "Error: Invalid host option '-h $HOST_FLAG'. Use 'v' or 'm'."
+            usage
+            ;;
     esac
 fi
 
+DB_PATH="$RESOURCE_DIR/$DB_NAME"
+TSV_OUT="${OUT_PREFIX}_${SUFFIX}.tsv"
+FASTA_OUT="${OUT_PREFIX}_${SUFFIX}.fasta"
+
 # --- 3. Run BLAST ---
-echo "Running BLAST for Sample: $OUT_PREFIX using $DB_NAME"
+echo "Running BLAST for Sample: $OUT_PREFIX using $DB_NAME ($SUFFIX mode)"
 blastn -query "$QUERY" \
        -db "$DB_PATH" \
        -out "$TSV_OUT" \
