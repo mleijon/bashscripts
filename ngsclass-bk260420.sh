@@ -90,7 +90,7 @@ if [[ "$RAW_MODE" == "n" ]]; then
         [ -e "$f1" ] || continue
         # Robustly swap R1 for R2 regardless of following characters
         f2="${f1/_R1/_R2}"
-        sample_name=$(basename "$f1" | sed 's/_R1.*//')
+        sample_name=$(basename "$f1" | sed 's/_L.*//')
         out_p="$TRIM_DIR/${sample_name}"
         if [[ ! -f "${out_p}_1P.fastq.gz" ]]; then
             echo "   Processing: $sample_name"
@@ -105,7 +105,7 @@ else
     echo "🌀 Mode: Raw Read Dereplication (USEARCH)"
     for f1 in $INPUT_PATTERN; do
         [ -e "$f1" ] || continue
-        sample_name=$(basename "$f1" | sed 's/_R1.*//')
+        sample_name=$(basename "$f1" | sed 's/_L.*//')
         derep_f="$DERE_DIR/${sample_name}_derep.fa"
         if [[ ! -f "$derep_f" ]]; then
             echo "   Dereplicating: $sample_name"
