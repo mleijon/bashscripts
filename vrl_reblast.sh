@@ -2,6 +2,7 @@
 
 # --- Path Configuration ---
 RESOURCE_DIR="/mnt/micke_ssd/resources"
+export BLASTDB="$RESOURCE_DIR"
 VERT_TAXIDS="$RESOURCE_DIR/vertebrate_virus_taxids.txt"
 MAMM_TAXIDS="$RESOURCE_DIR/mammal_virus_taxids.txt"
 
