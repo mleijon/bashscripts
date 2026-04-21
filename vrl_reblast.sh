@@ -83,38 +83,40 @@ blastn -query "$QUERY" \
 # --- 4. Optional Case-Insensitive Exclusion Filter ---
 if [ "$USE_EXCLUSION" = true ]; then
     if [[ -f "$EXCLUDED_FILE" && -s "$EXCLUDED_FILE" ]]; then
-        echo "--> Applying case-insensitive exclusion filter..."
+        echo "--> Applying exclusion filter..."
         grep -v -i -F -f "$EXCLUDED_FILE" "$TSV_OUT" > "${TSV_OUT}.tmp" && mv "${TSV_OUT}.tmp" "$TSV_OUT"
     else
-        echo "Warning: -e set but $EXCLUDED_FILE not found or empty."
+        echo "Warning: -e set but $EXCLUDED_FILE missing or empty."
     fi
 fi
 
-# --- 5. Process Top Hits for EACH Query ---
+# --- 5. Process ALL Top Hits ---
 if [[ ! -s "$TSV_OUT" ]]; then
     echo "No valid hits found for $OUT_PREFIX."
     exit 0
 fi
 
-echo "Processing top hits for all query sequences..."
-# Clear existing FASTA output
+echo "Processing top hits and removing line breaks with seqkit..."
+# Clear/initialize output file
 > "$FASTA_OUT"
 
-# Use awk to take only the first hit (best score) for each unique qseqid
+# Select only the first hit for each unique query ID
 awk '!seen[$1]++' "$TSV_OUT" | while read -r line; do
     QSEQID=$(echo "$line" | awk '{print $1}')
     SSEQID=$(echo "$line" | awk '{print $2}')
     SSTRAND=$(echo "$line" | awk '{print $13}')
 
-    # Extract and orient sequence, prepending the original query ID to the header
-    if [[ "$SSTRAND" == "minus" ]]; then
-        blastdbcmd -db "$DB_PATH" -entry "$SSEQID" -strand minus | \
-            sed "s/^>/>${QSEQID}_hit_/" >> "$FASTA_OUT"
-    else
-        blastdbcmd -db "$DB_PATH" -entry "$SSEQID" -strand plus | \
-            sed "s/^>/>${QSEQID}_hit_/" >> "$FASTA_OUT"
-    fi
+    # Determine orientation flag
+    STRAND_VAL="plus"
+    [[ "$SSTRAND" == "minus" ]] && STRAND_VAL="minus"
+
+    # Extract, prepend query ID to header, and remove line breaks with seqkit
+    blastdbcmd -db "$DB_PATH" -entry "$SSEQID" -strand "$STRAND_VAL" | \
+        sed "s/^>/>${QSEQID}_hit_/" | \
+        seqkit seq -w 0 >> "$FASTA_OUT"
 done
 
 TOTAL_HITS=$(grep -c "^>" "$FASTA_OUT" || true)
-echo "Done. Extracted $TOTAL_HITS top hits to $FASTA_OUT"
+echo "-------------------------------------------------------"
+echo "Done. Extracted $TOTAL_HITS sequences to $FASTA_OUT"
+echo "Format: Single-line sequences (ready for grep -A1)"
