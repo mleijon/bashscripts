@@ -15,7 +15,7 @@ usage() {
     echo "  -q    Query FASTA file"
     echo "  -o    Optional: Manual output prefix (default: extracted from -q)"
     echo "  -h    Host restriction: 'v' (vertebrates) or 'm' (mammals)"
-    echo "  -e    Enable exclusion filter (uses $EXCLUDED_FILE)"
+    echo "  -e    Enable case-insensitive exclusion filter (uses $EXCLUDED_FILE)"
     echo ""
     exit 1
 }
@@ -28,7 +28,6 @@ USE_EXCLUSION=false
 MAX_TARGETS=5
 SUFFIX="viruses_rbl"
 
-# Add 'e' to getopts
 while getopts "q:o:h:e" opt; do
     case $opt in
         q) QUERY="$OPTARG" ;;
@@ -61,7 +60,6 @@ if [[ -n "$HOST_FLAG" ]]; then
     esac
 fi
 
-# If exclusion is enabled, increase targets and update suffix
 if [ "$USE_EXCLUSION" = true ]; then
     MAX_TARGETS=50
     SUFFIX="${SUFFIX}_cleaned"
@@ -72,8 +70,7 @@ TSV_OUT="${OUT_PREFIX}_${SUFFIX}.tsv"
 FASTA_OUT="${OUT_PREFIX}_${SUFFIX}.fasta"
 
 # --- 3. Run BLAST ---
-echo "Running BLAST for Sample: $OUT_PREFIX using $DB_NAME"
-# We include 'stitle' (col 16) regardless so the TSV is always descriptive
+echo "Running BLAST for $OUT_PREFIX against $DB_NAME..."
 blastn -query "$QUERY" \
        -db "$DB_PATH" \
        -out "$TSV_OUT" \
@@ -83,36 +80,41 @@ blastn -query "$QUERY" \
        -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore sstrand staxids sscinames stitle" \
        -num_threads $(nproc)
 
-# --- 4. Optional Exclusion Filter ---
+# --- 4. Optional Case-Insensitive Exclusion Filter ---
 if [ "$USE_EXCLUSION" = true ]; then
     if [[ -f "$EXCLUDED_FILE" && -s "$EXCLUDED_FILE" ]]; then
-        echo "--> Applying exclusion filter from $EXCLUDED_FILE..."
+        echo "--> Applying case-insensitive exclusion filter..."
         grep -v -i -F -f "$EXCLUDED_FILE" "$TSV_OUT" > "${TSV_OUT}.tmp" && mv "${TSV_OUT}.tmp" "$TSV_OUT"
     else
-        echo "Warning: -e set but $EXCLUDED_FILE not found or empty. Skipping filter."
+        echo "Warning: -e set but $EXCLUDED_FILE not found or empty."
     fi
 fi
 
-# --- 5. Process Top Hits ---
+# --- 5. Process Top Hits for EACH Query ---
 if [[ ! -s "$TSV_OUT" ]]; then
     echo "No valid hits found for $OUT_PREFIX."
     exit 0
 fi
 
-TOP_HIT=$(head -n 1 "$TSV_OUT")
-SSEQID=$(echo "$TOP_HIT" | awk '{print $2}')
-SSTRAND=$(echo "$TOP_HIT" | awk '{print $13}')
-STITLE=$(echo "$TOP_HIT" | awk -F'\t' '{print $16}')
+echo "Processing top hits for all query sequences..."
+# Clear existing FASTA output
+> "$FASTA_OUT"
 
-echo "--> Top Valid Hit: $SSEQID"
-echo "--> Definition: $STITLE"
+# Use awk to take only the first hit (best score) for each unique qseqid
+awk '!seen[$1]++' "$TSV_OUT" | while read -r line; do
+    QSEQID=$(echo "$line" | awk '{print $1}')
+    SSEQID=$(echo "$line" | awk '{print $2}')
+    SSTRAND=$(echo "$line" | awk '{print $13}')
 
-if [[ "$SSTRAND" == "minus" ]]; then
-    echo "--> Orientation: Reverse. Extracting RC..."
-    blastdbcmd -db "$DB_PATH" -entry "$SSEQID" -strand minus > "$FASTA_OUT"
-else
-    echo "--> Orientation: Forward. Extracting..."
-    blastdbcmd -db "$DB_PATH" -entry "$SSEQID" -strand plus > "$FASTA_OUT"
-fi
+    # Extract and orient sequence, prepending the original query ID to the header
+    if [[ "$SSTRAND" == "minus" ]]; then
+        blastdbcmd -db "$DB_PATH" -entry "$SSEQID" -strand minus | \
+            sed "s/^>/>${QSEQID}_hit_/" >> "$FASTA_OUT"
+    else
+        blastdbcmd -db "$DB_PATH" -entry "$SSEQID" -strand plus | \
+            sed "s/^>/>${QSEQID}_hit_/" >> "$FASTA_OUT"
+    fi
+done
 
-echo "Done. Results: $TSV_OUT and $FASTA_OUT"
+TOTAL_HITS=$(grep -c "^>" "$FASTA_OUT" || true)
+echo "Done. Extracted $TOTAL_HITS top hits to $FASTA_OUT"
