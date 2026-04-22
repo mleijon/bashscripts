@@ -191,14 +191,9 @@ for f in "${INPUTS[@]}"; do
     if [[ ! -f "$tsv_out" && ! -f "${tsv_out}.gz" ]]; then
         echo "🔍 Classifying: $sample_name"
         diamond blastx -d "$DIAMOND_DB" -q "$f" -o "$tsv_out" \
-            --max-target-seqs 10 --evalue 1E-5 -b "$DIAMOND_BLOCK" -c "$DIAMOND_CHUNKS" \
-            --outfmt 6 qseqid full_qseq evalue staxids sscinames slineages skingdoms sphylums bitscore \
+            --max-target-seqs 1 --evalue 1E-5 -b "$DIAMOND_BLOCK" -c "$DIAMOND_CHUNKS" \
+            --outfmt 6 qseqid full_qseq evalue staxids sscinames slineages skingdoms sphylums \
             &> "./logs/$sample_name.diamond.log"
-
-        # Sort by Query ID ($1) then Bitscore ($9) descending, then keep top hit per Query
-        # This fixes cases where the first hit found wasn't the best alignment
-        sort -t$'\t' -k1,1 -k9,9gr "$tsv_out" | awk -F$'\t' '!seen[$1]++' \
-          > "${tsv_out}.tmp" && mv "${tsv_out}.tmp" "$tsv_out"
 
         # --- ENRICH TSV WITH COVERAGE ---
         if [[ -f "$cov_file" ]]; then
