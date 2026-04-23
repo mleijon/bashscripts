@@ -25,7 +25,7 @@ HOST_FLAG=""
 TAX_FILTER=""
 OUT_PREFIX=""
 USE_EXCLUSION=false
-MAX_TARGETS=5
+MAX_TARGETS=20 # Allow BLAST to find multiple candidates to find the best unique ones
 SUFFIX="rbl"
 
 while getopts "q:o:h:e" opt; do
@@ -71,13 +71,14 @@ FASTA_OUT="${OUT_PREFIX}_${SUFFIX}.fa"
 
 # --- 3. Run BLAST ---
 echo "Running BLAST for $OUT_PREFIX against $DB_NAME..."
+# Using 'sacc' to get the clean GenBank accession and 'stitle' for the description
 blastn -query "$QUERY" \
        -db "$DB_PATH" \
        -out "$TSV_OUT" \
        $TAX_FILTER \
        -max_target_seqs "$MAX_TARGETS" \
        -max_hsps 1 \
-       -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore sstrand staxids sscinames stitle" \
+       -outfmt "6 qseqid sacc pident length mismatch gapopen qstart qend sstart send evalue bitscore sstrand staxids sscinames stitle" \
        -num_threads $(nproc)
 
 # --- 4. Optional Case-Insensitive Exclusion Filter ---
@@ -90,33 +91,35 @@ if [ "$USE_EXCLUSION" = true ]; then
     fi
 fi
 
-# --- 5. Process ALL Top Hits ---
+# --- 5. Process Unique Hits ---
 if [[ ! -s "$TSV_OUT" ]]; then
     echo "No valid hits found for $OUT_PREFIX."
     exit 0
 fi
 
-echo "Processing top hits and removing line breaks with seqkit..."
-# Clear/initialize output file
+echo "Filtering for top hits and unique target sequences..."
 > "$FASTA_OUT"
 
-# Select only the first hit for each unique query ID
-awk '!seen[$1]++' "$TSV_OUT" | while read -r line; do
-    QSEQID=$(echo "$line" | awk '{print $1}')
-    SSEQID=$(echo "$line" | awk '{print $2}')
-    SSTRAND=$(echo "$line" | awk '{print $13}')
+# 1. Sort by bitscore (col 12) descending so the best match is at the top
+# 2. Filter by Query ID (col 1) so each of your sequences only appears once
+# 3. Filter by Subject Accession (col 2) if you want each virus to appear only once
+sort -k1,1 -k12,12rn "$TSV_OUT" | awk -F$'\t' '!seen[$1]++' | while IFS=$'\t' read -r QSEQID SACC PIDENT LENGTH MISMATCH GAPOPEN QSTART QEND SSTART SEND EVALUE BITSCORE SSTRAND STAXIDS SSCINAMES STITLE; do
 
-    # Determine orientation flag
-    STRAND_VAL="plus"
-    [[ "$SSTRAND" == "minus" ]] && STRAND_VAL="minus"
+    # Format header: >Original_ID hit:Accession Title
+    # Use 'seqkit faidx' to pull the original sequence from your query file
+    if [ "$SSTRAND" == "plus" ]; then
+        seqkit faidx "$QUERY" "$QSEQID" | \
+            seqkit replace -p "(.*)" -r "\$1 hit:${SACC} ${STITLE}" | \
+            seqkit seq -w 0 >> "$FASTA_OUT"
+    else
+        # Reverse complement if the match is on the minus strand
+        seqkit faidx "$QUERY" "$QSEQID" | \
+            seqkit replace -p "(.*)" -r "\$1 hit:${SACC} ${STITLE}" | \
+            seqkit seq -t DNA -r -p -w 0 >> "$FASTA_OUT"
+    fi
 
-    # Extract, prepend query ID to header, and remove line breaks with seqkit
-    blastdbcmd -db "$DB_PATH" -entry "$SSEQID" -strand "$STRAND_VAL" | \
-        sed "s/^>/>${QSEQID}_hit_/" | \
-        seqkit seq -w 0 >> "$FASTA_OUT"
 done
 
 TOTAL_HITS=$(grep -c "^>" "$FASTA_OUT" || true)
 echo "-------------------------------------------------------"
-echo "Done. Extracted $TOTAL_HITS sequences to $FASTA_OUT"
-echo "Format: Single-line sequences (ready for grep -A1)"
+echo "Done. Extracted $TOTAL_HITS unique top-hit sequences to $FASTA_OUT"

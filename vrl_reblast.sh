@@ -25,7 +25,7 @@ HOST_FLAG=""
 TAX_FILTER=""
 OUT_PREFIX=""
 USE_EXCLUSION=false
-MAX_TARGETS=20 # Allow BLAST to find multiple candidates to find the best unique ones
+MAX_TARGETS=20
 SUFFIX="rbl"
 
 while getopts "q:o:h:e" opt; do
@@ -71,7 +71,6 @@ FASTA_OUT="${OUT_PREFIX}_${SUFFIX}.fa"
 
 # --- 3. Run BLAST ---
 echo "Running BLAST for $OUT_PREFIX against $DB_NAME..."
-# Using 'sacc' to get the clean GenBank accession and 'stitle' for the description
 blastn -query "$QUERY" \
        -db "$DB_PATH" \
        -out "$TSV_OUT" \
@@ -91,35 +90,39 @@ if [ "$USE_EXCLUSION" = true ]; then
     fi
 fi
 
-# --- 5. Process Unique Hits ---
+# --- 5. Process Unique Hits & Sort by Length ---
 if [[ ! -s "$TSV_OUT" ]]; then
     echo "No valid hits found for $OUT_PREFIX."
     exit 0
 fi
 
-echo "Filtering for top hits and unique target sequences..."
-> "$FASTA_OUT"
+echo "Filtering for top hits and extracting sequences..."
+# Create a temporary file for unsorted results
+TMP_FASTA=$(mktemp)
 
-# 1. Sort by bitscore (col 12) descending so the best match is at the top
-# 2. Filter by Query ID (col 1) so each of your sequences only appears once
-# 3. Filter by Subject Accession (col 2) if you want each virus to appear only once
+# Sort by bitscore and take the first hit per query ID
 sort -k1,1 -k12,12rn "$TSV_OUT" | awk -F$'\t' '!seen[$1]++' | while IFS=$'\t' read -r QSEQID SACC PIDENT LENGTH MISMATCH GAPOPEN QSTART QEND SSTART SEND EVALUE BITSCORE SSTRAND STAXIDS SSCINAMES STITLE; do
 
-    # Format header: >Original_ID hit:Accession Title
-    # Use 'seqkit faidx' to pull the original sequence from your query file
     if [ "$SSTRAND" == "plus" ]; then
         seqkit faidx "$QUERY" "$QSEQID" | \
             seqkit replace -p "(.*)" -r "\$1 hit:${SACC} ${STITLE}" | \
-            seqkit seq -w 0 >> "$FASTA_OUT"
+            seqkit seq -w 0 >> "$TMP_FASTA"
     else
-        # Reverse complement if the match is on the minus strand
         seqkit faidx "$QUERY" "$QSEQID" | \
             seqkit replace -p "(.*)" -r "\$1 hit:${SACC} ${STITLE}" | \
-            seqkit seq -t DNA -r -p -w 0 >> "$FASTA_OUT"
+            seqkit seq -t DNA -r -p -w 0 >> "$TMP_FASTA"
     fi
 
 done
 
+# Now sort the collected FASTA sequences by length (longest first)
+if [[ -s "$TMP_FASTA" ]]; then
+    echo "Ordering output by sequence length (longest first)..."
+    seqkit sort -l -r "$TMP_FASTA" -w 0 > "$FASTA_OUT"
+    rm "$TMP_FASTA"
+fi
+
 TOTAL_HITS=$(grep -c "^>" "$FASTA_OUT" || true)
 echo "-------------------------------------------------------"
-echo "Done. Extracted $TOTAL_HITS unique top-hit sequences to $FASTA_OUT"
+echo "Done. Extracted $TOTAL_HITS sequences to $FASTA_OUT"
+echo "Sorted by: Length (descending)"
