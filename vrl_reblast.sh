@@ -71,13 +71,14 @@ FASTA_OUT="${OUT_PREFIX}_${SUFFIX}.fa"
 
 # --- 3. Run BLAST ---
 echo "Running BLAST for $OUT_PREFIX against $DB_NAME..."
+# We use 'sacc' to get the clean GenBank accession and 'stitle' for the virus name
 blastn -query "$QUERY" \
        -db "$DB_PATH" \
        -out "$TSV_OUT" \
        $TAX_FILTER \
        -max_target_seqs "$MAX_TARGETS" \
        -max_hsps 1 \
-       -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore sstrand staxids sscinames stitle" \
+       -outfmt "6 qseqid sacc pident length mismatch gapopen qstart qend sstart send evalue bitscore sstrand staxids sscinames stitle" \
        -num_threads $(nproc)
 
 # --- 4. Optional Case-Insensitive Exclusion Filter ---
@@ -90,28 +91,35 @@ if [ "$USE_EXCLUSION" = true ]; then
     fi
 fi
 
-# --- 5. Process ALL Top Hits (Extract Original Query Sequences) ---
+# --- 5. Process Unique Target Hits ---
 if [[ ! -s "$TSV_OUT" ]]; then
     echo "No valid hits found for $OUT_PREFIX."
     exit 0
 fi
 
-echo "Processing top hits and retaining original query sequences..."
-# Clear/initialize output file
+echo "Processing hits and ensuring unique target sequences in output..."
 > "$FASTA_OUT"
 
-# Select only the first hit for each unique query ID
-awk '!seen[$1]++' "$TSV_OUT" | while IFS=$'\t' read -r QSEQID SSEQID PIDENT LENGTH MISMATCH GAPOPEN QSTART QEND SSTART SEND EVALUE BITSCORE SSTRAND STAXIDS SSCINAMES STITLE; do
-    
-    # Extract the original sequence from the input query file using its ID
-    # and append the hit information to the header.
-    seqkit grep -p "$QSEQID" "$QUERY" | \
-        sed "s/^>/>${QSEQID} hit:${SSEQID} /" | \
-        seqkit seq -w 0 >> "$FASTA_OUT"
+# 1. Sort by bitscore (col 12) descending to ensure the best matches are processed first
+# 2. Filter for unique subject accessions (col 2) so each target appears only once
+sort -t$'\t' -k12,12rn "$TSV_OUT" | awk -F$'\t' '!seen[$2]++' | while IFS=$'\t' read -r QSEQID SACC PIDENT LENGTH MISMATCH GAPOPEN QSTART QEND SSTART SEND EVALUE BITSCORE SSTRAND STAXIDS SSCINAMES STITLE; do
 
-done < "$TSV_OUT"
+    # Header Logic:
+    # - seqkit faidx retrieves the original sequence with its existing classification header
+    # - seqkit replace appends " hit:Accession Title" to that header, avoiding repetition of the original ID/defline
+    # - seqkit seq -r -p handles reverse complementing if the match is on the minus strand
+    if [ "$SSTRAND" == "plus" ]; then
+        seqkit faidx "$QUERY" "$QSEQID" | \
+            seqkit replace -p "(.*)" -r "\$1 hit:${SACC} ${STITLE}" | \
+            seqkit seq -w 0 >> "$FASTA_OUT"
+    else
+        seqkit faidx "$QUERY" "$QSEQID" | \
+            seqkit replace -p "(.*)" -r "\$1 hit:${SACC} ${STITLE}" | \
+            seqkit seq -t DNA -r -p -w 0 >> "$FASTA_OUT"
+    fi
+
+done
 
 TOTAL_HITS=$(grep -c "^>" "$FASTA_OUT" || true)
 echo "-------------------------------------------------------"
-echo "Done. Extracted $TOTAL_HITS sequences to $FASTA_OUT"
-echo "Format: Single-line sequences (ready for grep -A1)"
+echo "Done. Extracted $TOTAL_HITS unique virus target matches to $FASTA_OUT"
