@@ -26,7 +26,7 @@ TAX_FILTER=""
 OUT_PREFIX=""
 USE_EXCLUSION=false
 MAX_TARGETS=5
-SUFFIX="viruses_rbl"
+SUFFIX="rbl"
 
 while getopts "q:o:h:e" opt; do
     case $opt in
@@ -67,7 +67,7 @@ fi
 
 DB_PATH="$RESOURCE_DIR/$DB_NAME"
 TSV_OUT="${OUT_PREFIX}_${SUFFIX}.tsv"
-FASTA_OUT="${OUT_PREFIX}_${SUFFIX}.fasta"
+FASTA_OUT="${OUT_PREFIX}_${SUFFIX}.fa"
 
 # --- 3. Run BLAST ---
 echo "Running BLAST for $OUT_PREFIX against $DB_NAME..."
