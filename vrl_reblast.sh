@@ -25,7 +25,7 @@ HOST_FLAG=""
 TAX_FILTER=""
 OUT_PREFIX=""
 USE_EXCLUSION=false
-MAX_TARGETS=5
+MAX_TARGETS=20 # Allow BLAST to find multiple candidates to find the best unique ones
 SUFFIX="rbl"
 
 while getopts "q:o:h:e" opt; do
@@ -71,7 +71,7 @@ FASTA_OUT="${OUT_PREFIX}_${SUFFIX}.fa"
 
 # --- 3. Run BLAST ---
 echo "Running BLAST for $OUT_PREFIX against $DB_NAME..."
-# We use 'sacc' to get the clean GenBank accession and 'stitle' for the virus name
+# Using 'sacc' to get the clean GenBank accession and 'stitle' for the description
 blastn -query "$QUERY" \
        -db "$DB_PATH" \
        -out "$TSV_OUT" \
@@ -91,28 +91,28 @@ if [ "$USE_EXCLUSION" = true ]; then
     fi
 fi
 
-# --- 5. Process Unique Target Hits ---
+# --- 5. Process Unique Hits ---
 if [[ ! -s "$TSV_OUT" ]]; then
     echo "No valid hits found for $OUT_PREFIX."
     exit 0
 fi
 
-echo "Processing hits and ensuring unique target sequences in output..."
+echo "Filtering for top hits and unique target sequences..."
 > "$FASTA_OUT"
 
-# 1. Sort by bitscore (col 12) descending to ensure the best matches are processed first
-# 2. Filter for unique subject accessions (col 2) so each target appears only once
-sort -t$'\t' -k12,12rn "$TSV_OUT" | awk -F$'\t' '!seen[$2]++' | while IFS=$'\t' read -r QSEQID SACC PIDENT LENGTH MISMATCH GAPOPEN QSTART QEND SSTART SEND EVALUE BITSCORE SSTRAND STAXIDS SSCINAMES STITLE; do
+# 1. Sort by bitscore (col 12) descending so the best match is at the top
+# 2. Filter by Query ID (col 1) so each of your sequences only appears once
+# 3. Filter by Subject Accession (col 2) if you want each virus to appear only once
+sort -k1,1 -k12,12rn "$TSV_OUT" | awk -F$'\t' '!seen[$1]++' | while IFS=$'\t' read -r QSEQID SACC PIDENT LENGTH MISMATCH GAPOPEN QSTART QEND SSTART SEND EVALUE BITSCORE SSTRAND STAXIDS SSCINAMES STITLE; do
 
-    # Header Logic:
-    # - seqkit faidx retrieves the original sequence with its existing classification header
-    # - seqkit replace appends " hit:Accession Title" to that header, avoiding repetition of the original ID/defline
-    # - seqkit seq -r -p handles reverse complementing if the match is on the minus strand
+    # Format header: >Original_ID hit:Accession Title
+    # Use 'seqkit faidx' to pull the original sequence from your query file
     if [ "$SSTRAND" == "plus" ]; then
         seqkit faidx "$QUERY" "$QSEQID" | \
             seqkit replace -p "(.*)" -r "\$1 hit:${SACC} ${STITLE}" | \
             seqkit seq -w 0 >> "$FASTA_OUT"
     else
+        # Reverse complement if the match is on the minus strand
         seqkit faidx "$QUERY" "$QSEQID" | \
             seqkit replace -p "(.*)" -r "\$1 hit:${SACC} ${STITLE}" | \
             seqkit seq -t DNA -r -p -w 0 >> "$FASTA_OUT"
@@ -122,4 +122,4 @@ done
 
 TOTAL_HITS=$(grep -c "^>" "$FASTA_OUT" || true)
 echo "-------------------------------------------------------"
-echo "Done. Extracted $TOTAL_HITS unique virus target matches to $FASTA_OUT"
+echo "Done. Extracted $TOTAL_HITS unique top-hit sequences to $FASTA_OUT"
