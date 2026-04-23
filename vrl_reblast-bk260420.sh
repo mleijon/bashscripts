@@ -90,26 +90,31 @@ if [ "$USE_EXCLUSION" = true ]; then
     fi
 fi
 
-# --- 5. Process ALL Top Hits (Extract Original Query Sequences) ---
+# --- 5. Process ALL Top Hits ---
 if [[ ! -s "$TSV_OUT" ]]; then
     echo "No valid hits found for $OUT_PREFIX."
     exit 0
 fi
 
-echo "Processing top hits and retaining original query sequences..."
+echo "Processing top hits and removing line breaks with seqkit..."
 # Clear/initialize output file
 > "$FASTA_OUT"
 
 # Select only the first hit for each unique query ID
-awk '!seen[$1]++' "$TSV_OUT" | while IFS=$'\t' read -r QSEQID SSEQID PIDENT LENGTH MISMATCH GAPOPEN QSTART QEND SSTART SEND EVALUE BITSCORE SSTRAND STAXIDS SSCINAMES STITLE; do
-    
-    # Extract the original sequence from the input query file using its ID
-    # and append the hit information to the header.
-    seqkit grep -p "$QSEQID" "$QUERY" | \
-        sed "s/^>/>${QSEQID} hit:${SSEQID} /" | \
-        seqkit seq -w 0 >> "$FASTA_OUT"
+awk '!seen[$1]++' "$TSV_OUT" | while read -r line; do
+    QSEQID=$(echo "$line" | awk '{print $1}')
+    SSEQID=$(echo "$line" | awk '{print $2}')
+    SSTRAND=$(echo "$line" | awk '{print $13}')
 
-done < "$TSV_OUT"
+    # Determine orientation flag
+    STRAND_VAL="plus"
+    [[ "$SSTRAND" == "minus" ]] && STRAND_VAL="minus"
+
+    # Extract, prepend query ID to header, and remove line breaks with seqkit
+    blastdbcmd -db "$DB_PATH" -entry "$SSEQID" -strand "$STRAND_VAL" | \
+        sed "s/^>/>${QSEQID}_hit_/" | \
+        seqkit seq -w 0 >> "$FASTA_OUT"
+done
 
 TOTAL_HITS=$(grep -c "^>" "$FASTA_OUT" || true)
 echo "-------------------------------------------------------"
