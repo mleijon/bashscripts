@@ -1,0 +1,141 @@
+#!/bin/bash
+
+# ==============================================================================
+# V-pipe Automated Pipeline with SnpEff Annotation and Dashboard
+# Usage: ./vpipe_auto.sh [AF_THRESHOLD] (Default: 0.01)
+# ==============================================================================
+
+# 1. Configuration & Parameters
+MIN_AF=${1:-0.01}
+MIN_DP=100
+REFERENCE_ID="IAV_H5N1_HA"
+SNPEFF_CONFIG="snpeff.config"
+WORKING_DIR=$(pwd)
+
+echo "--- Starting Pipeline Analysis ---"
+echo "Threshold: AF > $MIN_AF, DP > $MIN_DP"
+
+# 2. Step 1: Map sequences using Symbolic Links
+# Requirement: samples/ID/Tag/raw_fasta/
+echo "--- Step 1: Mapping sequences into raw_fasta folders ---"
+mkdir -p samples
+for f in fa/*; do
+    [ -e "$f" ] || continue
+    filename=$(basename "$f")
+    
+    # Extract SampleID and S# (e.g., Sample_S1.fastq.gz)
+    sample_id=$(echo "$filename" | cut -d'_' -f1)
+    s_tag=$(echo "$filename" | cut -d'_' -f2 | cut -d'.' -f1)
+    
+    # Create the required subfolder structure
+    target_dir="$WORKING_DIR/samples/$sample_id/$s_tag/raw_fasta"
+    mkdir -p "$target_dir"
+    
+    # Create symbolic link using absolute paths to prevent broken links
+    ln -sf "$WORKING_DIR/$f" "$target_dir/$filename"
+done
+
+# 3. Step 2: Run V-pipe Core Workflow
+echo "--- Step 2: Running V-pipe ---"
+. ~/miniforge3/bin/activate V-pipe
+./vpipe --use-conda --cores all
+
+# 4. Step 2.5: Fresh SnpEff Database Build
+# BUILD command: REQUIRES -noCheckCds and -noCheckProtein
+echo "--- Step 2.5: Rebuilding SnpEff Database ---"
+rm -rf "snpeff_db/$REFERENCE_ID/snpEffectPredictor.bin"
+snpEff build -c "$SNPEFF_CONFIG" -gff3 -noCheckCds -noCheckProtein -v "$REFERENCE_ID"
+
+# 5. Step 3: Annotation and Quality Filtering
+echo "--- Step 3: Variant Annotation & Filtering ---"
+find results -name "snvs.vcf" | while read -r vcf; do
+    sample_name=$(echo "$vcf" | cut -d'/' -f2)
+    s_folder=$(echo "$vcf" | cut -d'/' -f3)
+    annotated_vcf="${vcf%.vcf}.annotated.vcf"
+    final_vcf="${vcf%.vcf}.final.vcf"
+
+    echo "Processing: $sample_name ($s_folder)"
+
+    # ANNOTATION command: Build flags are REMOVED here to prevent the "Unknown option" error
+    snpEff -c "$SNPEFF_CONFIG" "$REFERENCE_ID" "$vcf" > "$annotated_vcf"
+
+    # Quality Filtering using bcftools
+    bcftools filter -i "AF > $MIN_AF && DP > $MIN_DP" "$annotated_vcf" > "$final_vcf"
+    
+    # Summary of filtered variants
+    count=$(grep -v "^#" "$final_vcf" | wc -l)
+    echo "  - Done: $count high-confidence variants."
+done
+
+# 6. Step 4: Generating Visualization Dashboard
+echo "--- Step 4: Generating Results Dashboard ---"
+DASHBOARD_FILE="results/dashboard.html"
+
+cat <<EOF > "$DASHBOARD_FILE"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>V-pipe SNV Dashboard</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; background: #f8f9fa; }
+        #sidebar { width: 350px; background: #2c3e50; color: white; overflow-y: auto; display: flex; flex-direction: column; }
+        #sidebar h2 { padding: 20px; margin: 0; background: #1a252f; font-size: 1.1em; text-align: center; }
+        .sample-link { 
+            padding: 12px 20px; border-bottom: 1px solid #34495e; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+            text-decoration: none; color: #ecf0f1; font-size: 0.85em;
+        }
+        .sample-link:hover { background: #34495e; }
+        .sample-link.active { background: #3498db; font-weight: bold; }
+        .badge { background: #e67e22; padding: 2px 7px; border-radius: 8px; font-size: 0.8em; font-weight: bold; }
+        #viewer-area { flex-grow: 1; display: flex; flex-direction: column; }
+        iframe { width: 100%; height: 100%; border: none; background: white; }
+        .welcome { padding: 50px; text-align: center; color: #7f8c8d; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2>🔬 H5N1 Analysis</h2>
+        <div id="menu">
+EOF
+
+# Find all final high-confidence VCFs to build the interactive menu
+find results -name "snvs.final.vcf" | sort | while read -r vcf_path; do
+    s_id=$(echo "$vcf_path" | cut -d'/' -f2)
+    s_t=$(echo "$vcf_path" | cut -d'/' -f3)
+    rel_html="${s_id}/${s_t}/visualization/snv_calling.html"
+    
+    # Count variants for the sidebar badge
+    v_count=$(grep -v "^#" "$vcf_path" | wc -l)
+    
+    echo "            <a class=\"sample-link\" onclick=\"load(this, '$rel_html')\">
+                <span>$s_id ($s_t)</span>
+                <span class=\"badge\">$v_count var</span>
+            </a>" >> "$DASHBOARD_FILE"
+done
+
+cat <<EOF >> "$DASHBOARD_FILE"
+        </div>
+    </div>
+    <div id="viewer-area">
+        <div id="msg" class="welcome">
+            <h2>Workflow Complete</h2>
+            <p>Applied Filter: AF > $MIN_AF | DP > $MIN_DP</p>
+            <p>Select a sample to view the SNV visualization.</p>
+        </div>
+        <iframe id="frame" src="about:blank"></iframe>
+    </div>
+    <script>
+        function load(el, path) {
+            document.getElementById('msg').style.display = 'none';
+            document.getElementById('frame').src = path;
+            document.querySelectorAll('.sample-link').forEach(l => l.classList.remove('active'));
+            el.classList.add('active');
+        }
+    </script>
+</body>
+</html>
+EOF
+
+echo "--- Pipeline Finished: results/dashboard.html ---"
