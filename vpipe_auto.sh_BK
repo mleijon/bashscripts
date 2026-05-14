@@ -1,7 +1,8 @@
 #!/bin/bash
+set -ueo pipefail
 
 # ==============================================================================
-# V-pipe Automated Pipeline with SnpEff Annotation and Dashboard
+# V-pipe Automated Pipeline: Alignment, Variant Calling, Annotation, & Dashboard
 # Usage: ./vpipe_auto.sh [AF_THRESHOLD] (Default: 0.01)
 # ==============================================================================
 
@@ -9,66 +10,94 @@
 MIN_AF=${1:-0.01}
 MIN_DP=100
 REFERENCE_ID="IAV_H5N1_HA"
+REF_FASTA="references/reference.fasta"
+REF_GFF="references/reference.gff3"
 SNPEFF_CONFIG="snpeff.config"
 WORKING_DIR=$(pwd)
 
 echo "--- Starting Pipeline Analysis ---"
 echo "Threshold: AF > $MIN_AF, DP > $MIN_DP"
 
-# 2. Step 1: Map sequences using Symbolic Links
-# Requirement: samples/ID/Tag/raw_fasta/
-echo "--- Step 1: Mapping sequences into raw_fasta folders ---"
+# 2. Step 1: Map sequences using Symbolic Links with Clean Filenames
+# Note: Using 'raw_data' to match your attached script's structure
+echo "--- Step 1: Mapping and cleaning filenames in raw_data folders ---"
 mkdir -p samples
 for f in fa/*; do
     [ -e "$f" ] || continue
     filename=$(basename "$f")
     
-    # Extract SampleID and S# (e.g., Sample_S1.fastq.gz)
+    # Extract components from Illumina format
     sample_id=$(echo "$filename" | cut -d'_' -f1)
-    s_tag=$(echo "$filename" | cut -d'_' -f2 | cut -d'.' -f1)
+    s_tag=$(echo "$filename" | cut -d'_' -f2)
+    
+    # Identify if it is Read 1 or Read 2
+    if [[ "$filename" == *"_R1_"* ]]; then
+        read_pair="R1"
+    else
+        read_pair="R2"
+    fi
+    
+    # Construct the cleaned filename
+    new_filename="${sample_id}_${s_tag}_${read_pair}.fastq.gz"
     
     # Create the required subfolder structure
-    target_dir="$WORKING_DIR/samples/$sample_id/$s_tag/raw_fasta"
+    target_dir="$WORKING_DIR/samples/$sample_id/$s_tag/raw_data"
     mkdir -p "$target_dir"
     
-    # Create symbolic link using absolute paths to prevent broken links
-    ln -sf "$WORKING_DIR/$f" "$target_dir/$filename"
+    # Create symbolic link
+    ln -sf "$WORKING_DIR/$f" "$target_dir/$new_filename"
+    echo "  Mapped: $filename -> $new_filename"
 done
 
-# 3. Step 2: Run V-pipe Core Workflow
-echo "--- Step 2: Running V-pipe ---"
+# 3. Step 2: SnpEff Environment Auto-Setup & Rebuild
+echo "--- Step 2: Recreating SnpEff Database from Reference Files ---"
+# Remove old directory to ensure a clean slate as discussed
+rm -rf "snpeff_db/$REFERENCE_ID"
+mkdir -p "snpeff_db/$REFERENCE_ID"
+
+# Automatically copy and rename your input reference files for SnpEff
+cp "$REF_FASTA" "snpeff_db/$REFERENCE_ID/sequences.fa"
+cp "$REF_GFF" "snpeff_db/$REFERENCE_ID/genes.gff"
+
+mkdir -p logs
 . ~/miniforge3/bin/activate V-pipe
+
+# Rebuild the database (Redirecting to log to keep terminal clean)
+snpEff build -c "$SNPEFF_CONFIG" -gff3 -noCheckCds -noCheckProtein -v "$REFERENCE_ID" > logs/snpeff_build.log 2>&1
+echo "  - SnpEff database rebuilt. Log: logs/snpeff_build.log"
+
+# 4. Step 3: Run V-pipe Core Workflow
+echo "--- Step 3: Running V-pipe ---"
 ./vpipe --use-conda --cores all
 
-# 4. Step 2.5: Fresh SnpEff Database Build
-# BUILD command: REQUIRES -noCheckCds and -noCheckProtein
-echo "--- Step 2.5: Rebuilding SnpEff Database ---"
-rm -rf "snpeff_db/$REFERENCE_ID/snpEffectPredictor.bin"
-snpEff build -c "$SNPEFF_CONFIG" -gff3 -noCheckCds -noCheckProtein -v "$REFERENCE_ID"
-
-# 5. Step 3: Annotation and Quality Filtering
-echo "--- Step 3: Variant Annotation & Filtering ---"
+# 5. Step 4: Annotation & Quality Filtering
+echo "--- Step 4: Annotation & Filtering ---"
 find results -name "snvs.vcf" | while read -r vcf; do
+    sample_dir=$(dirname "$vcf")
     sample_name=$(echo "$vcf" | cut -d'/' -f2)
     s_folder=$(echo "$vcf" | cut -d'/' -f3)
+    
     annotated_vcf="${vcf%.vcf}.annotated.vcf"
     final_vcf="${vcf%.vcf}.final.vcf"
+    
+    summary_html="$sample_dir/snpEff_summary.html"
 
     echo "Processing: $sample_name ($s_folder)"
 
-    # ANNOTATION command: Build flags are REMOVED here to prevent the "Unknown option" error
-    snpEff -c "$SNPEFF_CONFIG" "$REFERENCE_ID" "$vcf" > "$annotated_vcf"
+    # Annotation: Clean command (build flags are excluded)
+    snpEff -c "$SNPEFF_CONFIG" \
+           -s "$summary_html" \
+           "$REFERENCE_ID" "$vcf" > "$annotated_vcf"
 
     # Quality Filtering using bcftools
     bcftools filter -i "AF > $MIN_AF && DP > $MIN_DP" "$annotated_vcf" > "$final_vcf"
     
-    # Summary of filtered variants
     count=$(grep -v "^#" "$final_vcf" | wc -l)
-    echo "  - Done: $count high-confidence variants."
+    echo "  - Result: $count high-confidence variants."
 done
 
-# 6. Step 4: Generating Visualization Dashboard
-echo "--- Step 4: Generating Results Dashboard ---"
+# 6. Step 5: Generating Results Dashboard
+echo "--- Step 5: Generating Dashboard ---"
 DASHBOARD_FILE="results/dashboard.html"
 
 cat <<EOF > "$DASHBOARD_FILE"
@@ -76,7 +105,7 @@ cat <<EOF > "$DASHBOARD_FILE"
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>V-pipe SNV Dashboard</title>
+    <title>V-pipe Analysis Dashboard</title>
     <style>
         body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; background: #f8f9fa; }
         #sidebar { width: 350px; background: #2c3e50; color: white; overflow-y: auto; display: flex; flex-direction: column; }
@@ -89,9 +118,9 @@ cat <<EOF > "$DASHBOARD_FILE"
         .sample-link:hover { background: #34495e; }
         .sample-link.active { background: #3498db; font-weight: bold; }
         .badge { background: #e67e22; padding: 2px 7px; border-radius: 8px; font-size: 0.8em; font-weight: bold; }
-        #viewer-area { flex-grow: 1; display: flex; flex-direction: column; }
+        #viewer { flex-grow: 1; display: flex; flex-direction: column; }
         iframe { width: 100%; height: 100%; border: none; background: white; }
-        .welcome { padding: 50px; text-align: center; color: #7f8c8d; }
+        .msg { padding: 50px; text-align: center; color: #7f8c8d; }
     </style>
 </head>
 <body>
@@ -100,13 +129,10 @@ cat <<EOF > "$DASHBOARD_FILE"
         <div id="menu">
 EOF
 
-# Find all final high-confidence VCFs to build the interactive menu
 find results -name "snvs.final.vcf" | sort | while read -r vcf_path; do
     s_id=$(echo "$vcf_path" | cut -d'/' -f2)
     s_t=$(echo "$vcf_path" | cut -d'/' -f3)
     rel_html="${s_id}/${s_t}/visualization/snv_calling.html"
-    
-    # Count variants for the sidebar badge
     v_count=$(grep -v "^#" "$vcf_path" | wc -l)
     
     echo "            <a class=\"sample-link\" onclick=\"load(this, '$rel_html')\">
@@ -118,17 +144,17 @@ done
 cat <<EOF >> "$DASHBOARD_FILE"
         </div>
     </div>
-    <div id="viewer-area">
-        <div id="msg" class="welcome">
+    <div id="viewer">
+        <div id="welcome" class="msg">
             <h2>Workflow Complete</h2>
-            <p>Applied Filter: AF > $MIN_AF | DP > $MIN_DP</p>
-            <p>Select a sample to view the SNV visualization.</p>
+            <p>Threshold: AF > $MIN_AF | DP > $MIN_DP</p>
+            <p>Select a sample to view the interactive SNV plot.</p>
         </div>
         <iframe id="frame" src="about:blank"></iframe>
     </div>
     <script>
         function load(el, path) {
-            document.getElementById('msg').style.display = 'none';
+            document.getElementById('welcome').style.display = 'none';
             document.getElementById('frame').src = path;
             document.querySelectorAll('.sample-link').forEach(l => l.classList.remove('active'));
             el.classList.add('active');
