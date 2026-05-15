@@ -103,8 +103,7 @@ find results -name "snvs.vcf" | while read -r vcf; do
 
     # Quality Filtering using bcftools
     bcftools filter -i "AF > $MIN_AF && DP > $MIN_DP" "$annotated_vcf" > "$final_vcf"
-    
-    count=$(grep -v "^#" "$final_vcf" | wc -l)
+    count=$(awk '!/^#/{c++} END{print c+0}' "$final_vcf")
     echo "  - Result: $count high-confidence variants."
 done
 
@@ -145,8 +144,7 @@ find results -name "snvs.final.vcf" | sort | while read -r vcf_path; do
     s_id=$(echo "$vcf_path" | cut -d'/' -f2)
     s_t=$(echo "$vcf_path" | cut -d'/' -f3)
     rel_html="${s_id}/${s_t}/visualization/snv_calling.html"
-    v_count=$(grep -v "^#" "$vcf_path" | wc -l)
-
+    v_count=$(awk '!/^#/{c++} END{print c+0}' "$vcf_path")
     echo "            <a class=\"sample-link\" onclick=\"load(this, '$rel_html')\">
                 <span>$s_id ($s_t)</span>
                 <span class=\"badge\">$v_count var</span>
