@@ -9,13 +9,21 @@ set -ueo pipefail
 # 1. Configuration & Parameters
 MIN_AF=${1:-0.01}
 MIN_DP=100
-REFERENCE_ID="IAV_H5N1"
 REF_FASTA="references/reference.fasta"
 REF_GFF="references/reference.gff3"
+
+# Dynamically extract REFERENCE_ID from FASTA header (e.g., >IAV_H5N1_PB2 -> IAV_H5N1)
+if [ -f "$REF_FASTA" ]; then
+    REFERENCE_ID=$(grep ">" "$REF_FASTA" | head -n 1 | cut -d'_' -f1,2 | sed 's/^>//')
+else
+    REFERENCE_ID="Unknown_Virus"
+fi
+
 SNPEFF_CONFIG="snpeff.config"
 WORKING_DIR=$(pwd)
 
-echo "--- Starting Pipeline Analysis ---"
+echo "--- Starting Pipeline Analysis for $REFERENCE_ID ---"
+
 echo "Threshold: AF > $MIN_AF, DP > $MIN_DP"
 
 # 2. Step 1: Map sequences using Symbolic Links with Clean Filenames
