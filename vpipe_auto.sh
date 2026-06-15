@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ueo pipefail
+#set -ueo pipefail
 
 # ==============================================================================
 # V-pipe Automated Pipeline: Alignment, Variant Calling, Annotation, & Dashboard
@@ -80,7 +80,7 @@ cp "$REF_GFF" "snpeff_db/$REFERENCE_ID/genes.gff"
 
 # ... fortsätt sedan med snpEff build som vanligt
 mkdir -p logs
-. ~/miniforge3/bin/activate V-pipe
+#. ~/miniforge3/bin/activate V-pipe
 
 # Rebuild the database (Redirecting to log to keep terminal clean)
 snpEff build -c "$SNPEFF_CONFIG" -gff3 -noCheckCds -noCheckProtein -v "$REFERENCE_ID" > logs/snpeff_build.log 2>&1
@@ -88,7 +88,7 @@ echo "  - SnpEff database rebuilt. Log: logs/snpeff_build.log"
 
 # 4. Step 3: Run V-pipe Core Workflow
 echo "--- Step 3: Running V-pipe ---"
-./vpipe --use-conda --cores all
+./vpipe --cores all
 
 # 5. Step 4: Annotation & Quality Filtering
 echo "--- Step 4: Annotation & Filtering ---"

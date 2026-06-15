@@ -21,9 +21,8 @@ error_report() {
 
 # Define cleanup function
 cleanup() {
-    rm -f "$blast_results" "$seen_list" "$INPUT_FILE" GB_Release_Number 2>/dev/null
+    rm -f "${blast_results:-}" "${seen_list:-}" "${INPUT_FILE:-}" GB_Release_Number 2>/dev/null
 }
-
 # 1. Capture the line number on any error
 trap 'error_report $LINENO' ERR
 
@@ -155,12 +154,13 @@ while IFS=$'\t' read -r qseqid sacc strand score stitle; do
     if [ -n "$sacc" ]; then
         query_id="$qseqid"
 
-        # --- SMART SEGMENT EXTRACTION ---
-        # Priority 1: Check for "segment X"
-        raw_seg=$(echo "$stitle" | grep -oiP "segment[:\s]*\K\w+" || true)
+	# --- SMART SEGMENT EXTRACTION ---
+        # Priority 1: Check for "segment X" (e.g., segment 4 -> s4)
+        raw_seg=$(echo "$stitle" | grep -oiP "segment[:\s]*\K\d+" || true)
+
         if [ -n "$raw_seg" ]; then
-            seg_suffix="s${raw_seg,,}"
-        # Priority 2: Map protein names to segments (Standard Influenza A)
+            seg_suffix="s${raw_seg}"
+        # Priority 2: Map explicit protein names directly to standard s1-s8 labels
         elif echo "$stitle" | grep -qi "PB2"; then seg_suffix="s1"
         elif echo "$stitle" | grep -qi "PB1"; then seg_suffix="s2"
         elif echo "$stitle" | grep -qi "PA";  then seg_suffix="s3"

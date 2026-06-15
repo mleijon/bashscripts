@@ -114,15 +114,10 @@ awk -v total="$TOTAL_SAMPLES" '
     }
 ' "$OUT_DIR/clusters_cluster.tsv"
 
-# 6. Extract final sequences, sort descending, flatten lines, and append length to headers
-echo "Step 4: Extracting, sorting, and formatting shared sequences..."
+# 6. Extract the final sequences
+echo "Step 4: Extracting shared sequences to FASTA..."
 awk 'FNR==NR{a[$1];next} /^>/{f=0; id=substr($1,2); if(id in a) f=1} f' \
-    "$OUT_DIR/shared_ids.txt" "$CONCAT_FASTA" | \
-    seqkit sort -l -r | \
-    seqkit fx2tab -l | \
-    awk -F'\t' '{print $1" length="$4"\t"$2}' | \
-    seqkit tab2fx | \
-    seqkit seq -w 0 > "$OUT_DIR/final_shared_viruses.fasta"
+    "$OUT_DIR/shared_ids.txt" "$CONCAT_FASTA" > "$OUT_DIR/final_shared_viruses.fasta"
 
 SHARED_COUNT=$(wc -l < "$OUT_DIR/shared_ids.txt")
 
