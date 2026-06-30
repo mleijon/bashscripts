@@ -2,14 +2,14 @@
 set -ueo pipefail
 
 # ==============================================================================
-# Standalone BBTools Normalization for V-pipe
+# Standalone BBTools Normalization for V-pipe (Single-End Workaround)
 # ==============================================================================
 
 # Standardvärden
 INPUT_DIR=""
 OUTPUT_DIR=""
 NORM_TARGET=5000  # Högre default för V-pipe (kvasispecies)
-NORM_MIN=5
+NORM_MIN=2        # Sänkt till 2 för att bevara lågtäckta regioner (dalar)
 NORM_BITS=32
 
 # --- Hjälpfunktion ---
@@ -52,9 +52,14 @@ if [[ ! -d "$INPUT_DIR" ]]; then
     exit 1
 fi
 
-# Kontrollera att bbnorm är tillgängligt (t.ex. via din conda-miljö)
+# Kontrollera att nödvändiga BBTools-verktyg är tillgängliga
 if ! command -v bbnorm.sh &> /dev/null; then
-    echo "❌ Fel: 'bbnorm.sh' hittades inte. Är rätt Conda-miljö aktiverad?"
+    echo "❌ Fel: 'bbnorm.sh' hittades inte."
+    exit 1
+fi
+
+if ! command -v repair.sh &> /dev/null; then
+    echo "❌ Fel: 'repair.sh' hittades inte. Krävs för att synkronisera R1 och R2."
     exit 1
 fi
 
@@ -87,9 +92,12 @@ for f1 in "${INPUT_FILES[@]}"; do
     out_prefix="$OUTPUT_DIR/${sample_name}"
     
     # Filnamn för output
-    out1="${out_prefix}_R1_norm.fastq.gz"
-    out2="${out_prefix}_R2_norm.fastq.gz"
-    log_file="${LOG_DIR}/${sample_name}_bbnorm.log"
+    out1="${out_prefix}_R1.fastq.gz"
+    out2="${out_prefix}_R2.fastq.gz"
+    
+    # Separata loggfiler för de två stegen
+    log_file1="${LOG_DIR}/${sample_name}_bbnorm_R1.log"
+    log_file2="${LOG_DIR}/${sample_name}_repair_R2.log"
 
     # Kontrollera om filen redan är processad och matchande R2 finns
     if [[ ! -f "$f2" ]]; then
@@ -97,27 +105,53 @@ for f1 in "${INPUT_FILES[@]}"; do
         continue
     fi
 
-    if [[ ! -f "$out1" ]]; then
+    if [[ ! -f "$out1" || ! -f "$out2" ]]; then
         echo "   Processar: $sample_name"
         
+        # --- STEG 1: Normalisera enbart R1 (Bryter ankareffekten) ---
+        echo "     -> Steg 1/2: Plattar till täckningen för Read 1..."
         bbnorm.sh \
-            in1="$f1" \
-            in2="$f2" \
-            out1="$out1" \
-            out2="$out2" \
+            in="$f1" \
+            out="$out1" \
             target="$NORM_TARGET" \
             min="$NORM_MIN" \
+            minkmers=0 \
+            ecc=f \
+	    passes=1 \
+	    percentile=54 \
             bits="$NORM_BITS" \
             unpigz=t \
-            &> "$log_file"
+            &> "$log_file1"
             
-        # Enkel felhantering om bbnorm kraschar (t.ex. slut på minne)
         if [ $? -ne 0 ]; then
-             echo "❌ Fel vid processering av $sample_name. Se logg: $log_file"
+             echo "❌ Fel vid normalisering av $sample_name (Steg 1). Se logg: $log_file1"
+             continue
         fi
+
+        # --- STEG 2: Återställ paret för R2 med repair.sh ---
+        echo "     -> Steg 2/2: Återskapar par-synkronisering..."
+        
+        # Vi lägger out1 i en temporär fil under synkroniseringen
+        out1_temp="${out_prefix}_R1_temp.fastq.gz"
+
+        repair.sh \
+            in="$out1" \
+            in2="$f2" \
+            out="$out1_temp" \
+            out2="$out2" \
+            outs=/dev/null \
+            &> "$log_file2"
+
+        if [ $? -ne 0 ]; then
+             echo "❌ Fel vid synkronisering av $sample_name (Steg 2). Se logg: $log_file2"
+        else
+             # Skriv över den initiala R1 med den 100% synkroniserade R1-filen
+             mv "$out1_temp" "$out1"
+        fi
+        
     else
-        echo "   Hoppar över $sample_name (redan normaliserad)"
+        echo "   Hoppar över $sample_name (både R1 och R2 är redan genererade)"
     fi
 done
 
-echo "✅ Normalisering klar. Filer sparade i: $OUTPUT_DIR"
+echo "✅ Normalisering och par-synkronisering klar. Filer sparade i: $OUTPUT_DIR"

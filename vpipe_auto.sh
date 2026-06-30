@@ -39,10 +39,14 @@ for f in fa/*; do
     s_tag=$(echo "$filename" | cut -d'_' -f2)
     
     # Identify if it is Read 1 or Read 2
-    if [[ "$filename" == *"_R1_"* ]]; then
+    # Vi söker efter "_R1" följt av antingen en punkt (.) eller ett understreck (_)
+    if [[ "$filename" =~ _R1[._] ]]; then
         read_pair="R1"
-    else
+    elif [[ "$filename" =~ _R2[._] ]]; then
         read_pair="R2"
+    else
+        echo "Varning: Kunde inte identifiera R1/R2 för $filename. Hoppar över."
+        continue
     fi
     
     # Construct the cleaned filename
@@ -88,7 +92,7 @@ echo "  - SnpEff database rebuilt. Log: logs/snpeff_build.log"
 
 # 4. Step 3: Run V-pipe Core Workflow
 echo "--- Step 3: Running V-pipe ---"
-./vpipe --cores all
+./vpipe --jobs 2 --cores 16 
 
 # 5. Step 4: Annotation & Quality Filtering
 echo "--- Step 4: Annotation & Filtering ---"

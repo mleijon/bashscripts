@@ -2,8 +2,8 @@
 set -ueo pipefail
 
 # ==============================================================================
-# V-pipe Multi-Segment Controller (Dynamic ID & Portable Assets)
-# Usage: vpipe_multi.sh [AF_THRESHOLD] (Default: 0.01)
+# V-pipe Multi-Segment Controller (Dynamic ID, Portable Assets & Auto-Resume)
+# Usage: ./vpipe_multi.sh [AF_THRESHOLD] (Default: 0.01)
 # ==============================================================================
 
 MIN_AF=${1:-0.01}
@@ -29,20 +29,39 @@ for seg_path in segments/*; do
     [ -d "$seg_path" ] || continue
     seg_name=$(basename "$seg_path")
 
+    # --- CHANGE 2: Auto-Resume Check ---
+    if [ -d "results_$seg_name" ]; then
+        echo "------------------------------------------------------------------"
+        echo "--> Segment $seg_name already successfully processed. Skipping."
+        echo "------------------------------------------------------------------"
+        continue
+    fi
+
     echo "------------------------------------------------------------------"
     echo " PROCESSING SEGMENT: $seg_name"
     echo "------------------------------------------------------------------"
 
+    # Setup references for this specific segment
     mkdir -p references
     rm -f references/*
     cp "$seg_path/reference.fasta" references/reference.fasta
     cp "$seg_path/reference.gff3" references/reference.gff3
-    cp "$seg_path/primers.bed" references/primers.bed
+    
+    # --- CHANGE 1: Safe handling of primers.bed ---
+    if [ -f "$seg_path/primers.bed" ]; then
+        cp "$seg_path/primers.bed" references/primers.bed
+        echo "  -> primers.bed loaded."
+    else
+        echo "  -> Note: No primers.bed found for $seg_name. Proceeding without it."
+    fi
 
+    # Clean up any partial/failed run data from the active workspace
     rm -rf results
+    
+    # Execute the core V-pipe wrapper
     vpipe_auto.sh "$MIN_AF"
 
-    # Move logs and reports into results before renaming
+    # Move logs and reports into results before renaming the folder
     mv snpEff_summary.html snpEff_genes.txt logs results/ 2>/dev/null || true
 
     echo "Saving results for $seg_name..."
@@ -50,7 +69,7 @@ for seg_path in segments/*; do
     mv results "results_$seg_name"
 done
 
-# 2. Generate Master Dashboard (Portable & English)
+# 2. Generate Master Dashboard (Portable)
 echo "=== Generating Portable Master Dashboard ==="
 
 cat <<EOF > "$MASTER_DASHBOARD"
@@ -89,12 +108,13 @@ cat <<EOF > "$MASTER_DASHBOARD"
         <h2>🔬 $REFERENCE_ID Dashboard</h2>
 EOF
 
-# Identify unique sample IDs
-sample_ids=$(find results_* -maxdepth 1 -type d -name "23-*" 2>/dev/null | sed 's|.*/||' | sort -u)
+# Identify unique sample IDs dynamically by looking for successful HTML reports
+sample_ids=$(find results_* -type f -name "snv_calling.html" 2>/dev/null | cut -d'/' -f2 | sort -u)
 
 for s_id in $sample_ids; do
-    s_tag=$(find results_* -maxdepth 2 -type d -path "*/$s_id/S*" -print -quit 2>/dev/null | sed 's|.*/||')
-    
+    # Extract the S-tag (e.g., S103) dynamically
+    s_tag=$(find results_* -type f -path "*/$s_id/*/visualization/snv_calling.html" -print -quit 2>/dev/null | cut -d'/' -f3)    
+
     total_var=0
     for vcf in results_*/$s_id/$s_tag/variants/SNVs/snvs.final.vcf; do
         [ -f "$vcf" ] && total_var=$((total_var + $(awk '!/^#/{c++} END{print c+0}' "$vcf")))
