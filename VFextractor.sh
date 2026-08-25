@@ -3,7 +3,7 @@
 set -ueo pipefail
 
 # ==============================================================================
-# MASTER VIRULENCE FACTOR EXTRACTOR (Modular Folder Edition)
+# MASTER VIRULENCE FACTOR EXTRACTOR (Modular Folder & Multi-FASTA Edition)
 # ==============================================================================
 
 # --- PARAMETERS ---
@@ -69,9 +69,11 @@ for isolate in *.fasta; do
 
         makeblastdb -in "$working_genome" -dbtype nucl -logfile /dev/null
         
-        # BLAST search
+        # BLAST search: output includes bitscore ($6) and query ID ($7)
+        # We sort numerically reverse by bitscore (-k6,6nr) and pick the top line
         hit=$(blastn -query "$ref_path" -db "$working_genome" -evalue 1e-10 \
-              -outfmt "6 sseqid sstart send length qlen" -max_target_seqs 1 -max_hsps 1 2>/dev/null)
+              -outfmt "6 sseqid sstart send length qlen bitscore qseqid" \
+              -max_target_seqs 1 -max_hsps 1 2>/dev/null | sort -k6,6nr | head -n 1)
 
         if [ -z "$hit" ]; then
             echo "    - $gene_name: ABSENT" >> "$SUMMARY_FILE"
@@ -79,11 +81,14 @@ for isolate in *.fasta; do
             continue
         fi
 
+        # Parse the top hit
         contig=$(echo "$hit" | awk '{print $1}')
         s=$(echo "$hit" | awk '{print $2}')
         e=$(echo "$hit" | awk '{print $3}')
         aln=$(echo "$hit" | awk '{print $4}')
         qlen=$(echo "$hit" | awk '{print $5}')
+        variant=$(echo "$hit" | awk '{print $7}') # The specific name from inside the multi-FASTA
+        
         cov=$(( 100 * aln / qlen ))
 
         # Positional tracking for tandem check
@@ -93,7 +98,7 @@ for isolate in *.fasta; do
 
         # 3. THRESHOLD CHECK
         if [ "$cov" -lt "$MIN_COVERAGE" ]; then
-            echo "    - $gene_name: PARTIAL ($cov% coverage) at $contig:$s-$e" >> "$SUMMARY_FILE"
+            echo "    - $gene_name: PARTIAL ($cov% coverage) at $contig:$s-$e [Best match: $variant]" >> "$SUMMARY_FILE"
             rm -f "${working_genome}.n"*
             continue
         fi
@@ -117,7 +122,7 @@ for isolate in *.fasta; do
         bedtools maskfasta -fi "$working_genome" -bed temp_mask.bed -fo "${working_genome}.new" 2>/dev/null
         mv "${working_genome}.new" "$working_genome"
         
-        echo "    - $gene_name: PRESENT ($cov% coverage) at $contig:$s-$e" >> "$SUMMARY_FILE"
+        echo "    - $gene_name: PRESENT ($cov% coverage) at $contig:$s-$e [Best match: $variant]" >> "$SUMMARY_FILE"
         rm -f "${working_genome}.n"* temp_mask.bed
     done
 
