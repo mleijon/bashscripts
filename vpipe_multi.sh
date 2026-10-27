@@ -57,6 +57,13 @@ for seg_path in segments/*; do
 
     # Clean up any partial/failed run data from the active workspace
     rm -rf results
+
+    # Rensa Snakemakes cache och undvik kvarlämnade symlänkar i samples
+    rm -rf .snakemake
+    rm -rf samples
+
+    # Rensa den fasta temp-mappen så ShoRAH inte återanvänder gamla filer
+    rm -rf /data2/micke/vpipe_temp/*
     
     # Execute the core V-pipe wrapper
     vpipe_auto.sh "$MIN_AF"
