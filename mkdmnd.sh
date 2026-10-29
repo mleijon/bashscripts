@@ -1,19 +1,19 @@
 #!/bin/bash
 # Unified script for NCBI Clustered NR download and DIAMOND build
 set -ueo pipefail
+trap 'echo "❌ Skriptet avbröts på rad $LINENO"' ERR
 
 # --- CONFIGURATION ---
 DB_NAME="nr_cluster_seq"
 DEST_DIR="/mnt/micke_ssd/resources"
 NRCLUST_PATH="https://ftp.ncbi.nlm.nih.gov/blast/db/experimental/"
 TAXONOMY_PATH="https://ftp.ncbi.nlm.nih.gov/pub/taxonomy"
-MAX_VOL=86
 THREADS=72
 CONDA_ENV="bio-db"
 
 echo "Activating environment..."
-source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate "$CONDA_ENV"
+source ~/miniforge3/etc/profile.d/mamba.sh
+mamba activate "$CONDA_ENV"
 
 cd "$DEST_DIR"
 
@@ -35,7 +35,7 @@ fi
 # 3. Download Taxonomy & Metadata
 echo "Downloading Taxonomy and version metadata..."
 
-# Helper function for downloads with MD5 verification
+# Helper function for smart downloads with MD5 verification
 download_verify() {
     local base_url=$1
     local file_path=$2
@@ -44,19 +44,54 @@ download_verify() {
     # Remove trailing slash from base_url if present
     local clean_base_url=${base_url%/}
 
-    echo "Downloading: $base_name"
-    wget -c "${clean_base_url}/${file_path}"
-    wget -q "${clean_base_url}/${file_path}.md5"
-    echo "Verifying $base_name..."
-    md5sum -c "$base_name.md5"
-}
+    echo "Fetching latest MD5 for $base_name..."
+    # Hämta alltid den absolut senaste MD5-filen och skriv över den gamla lokala
+    wget -q -O "${base_name}.md5" "${clean_base_url}/${file_path}.md5"
 
+    if [ -f "$base_name" ]; then
+        if md5sum --status -c "${base_name}.md5"; then
+            echo "✅ $base_name is up-to-date and verified. Skipping download."
+            return 0
+        else
+            echo "⚠️ MD5 mismatch for $base_name. The file is outdated or incomplete."
+        fi
+    fi
+
+    echo "⬇️ Downloading/Resuming: $base_name"
+    wget -c "${clean_base_url}/${file_path}"
+    
+    echo "🔍 Verifying newly downloaded $base_name..."
+    if md5sum --status -c "${base_name}.md5"; then
+        echo "✅ Verification successful."
+    else
+        echo "❌ ERROR: Checksum failed for $base_name!"
+        echo "Deleting corrupted/outdated file so it can be downloaded fresh next run..."
+        rm -f "$base_name"
+        exit 1
+    fi
+}
 download_verify "$TAXONOMY_PATH" "accession2taxid/prot.accession2taxid.FULL.gz"
 download_verify "$TAXONOMY_PATH" "taxdump.tar.gz"
 
 # 4. Download Clustered NR Volumes
+echo "Fetching metadata to determine the number of volumes..."
+METADATA_URL="${NRCLUST_PATH}${DB_NAME}-prot-metadata.json"
+
+# Ladda ner JSON direkt i minnet, hitta raden med number-of-volumes och rensa bort allt utom siffrorna
+NUM_VOLS=$(wget -qO- "$METADATA_URL" | grep '"number-of-volumes"' | tr -cd '0-9')
+
+if [ -z "$NUM_VOLS" ]; then
+    echo "❌ ERROR: Could not parse number of volumes from metadata!"
+    exit 1
+fi
+
+# Eftersom NCBI börjar numrera på 000, blir maxindexet totalen minus 1
+MAX_VOL=$((NUM_VOLS - 1))
+echo "Metadata reports $NUM_VOLS volumes. Downloading from 000 to $(printf "%03d" $MAX_VOL)..."
+
 echo "Starting download of $DB_NAME volumes..."
-for i in $(seq -f "%02g" 0 $MAX_VOL); do
+# Använd %03g för att alltid få tre siffror (000, 001, ..., 159)
+for i in $(seq -f "%03g" 0 $MAX_VOL); do
     download_verify "$NRCLUST_PATH" "${DB_NAME}.${i}.tar.gz"
 done
 

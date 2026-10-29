@@ -20,7 +20,7 @@ BINS_DIR="./bins_fasta"
 CHECKM2_OUT="./checkm2_out"
 
 # Databases
-DIAMOND_DB="/mnt/micke_ssd/resources/nr_cluster_seq_2026_271.0.dmnd"
+DIAMOND_DB="/mnt/micke_ssd/resources/nr_cluster_seq_2026_274.0.dmnd"
 # Replace with your actual CheckM2 database path on the SSD
 CHECKM2_DB="/mnt/micke_ssd/resources/CheckM2_database/uniref100.KO.1.dmnd" 
 
