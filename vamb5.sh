@@ -53,7 +53,7 @@ for r1 in "$FA_DIR"/*_R1*.fastq.gz; do
     
     if [ ! -f "$contig_fasta" ]; then
         echo "Running assembly for $sample..."
-        spades.py --meta -1 "$r1" -2 "$r2" -o "$out_dir" -t "$THREADS" -m "$MEM"
+        spades.py --meta --only-assembler -1 "$r1" -2 "$r2" -o "$out_dir" -t "$THREADS" -m "$MEM"
     else
         echo "Found completed assembly for $sample, skipping SPAdes."
     fi

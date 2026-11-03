@@ -29,7 +29,8 @@ echo "Target database name will be ${DMND_DB_NAME}.dmnd"
 # 2. Clean up old files
 if [ -f "${DMND_DB_NAME}.dmnd" ]; then
     echo "Found existing database. Cleaning up old resources..."
-    rm -f "${DMND_DB_NAME}.dmnd" nodes.dmp names.dmp taxdump.tar.gz prot.accession2taxid.FULL.gz
+    rm -f "${DMND_DB_NAME}.dmnd" nodes.dmp names.dmp delnodes.dmp merged.dmp \
+	    taxdump.tar.gz prot.accession2taxid.FULL.gz
 fi
 
 # 3. Download Taxonomy & Metadata
@@ -97,7 +98,7 @@ done
 
 # 5. Extraction
 echo "Extracting taxonomy..."
-tar -xzvf taxdump.tar.gz nodes.dmp names.dmp
+tar -xzvf taxdump.tar.gz nodes.dmp names.dmp delnodes.dmp merged.dmp
 
 echo "Extracting database volumes in parallel..."
 ls ${DB_NAME}.*.tar.gz | xargs -n 1 -P 16 tar -xzvf
