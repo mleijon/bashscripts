@@ -7,10 +7,11 @@ set -euo pipefail
 # ==============================================================================
 
 # === Configuration ===
-THREADS=48
+MAX_THREADS=$(grep -c 'processor' /proc/cpuinfo)
+THREADS=$(( MAX_THREADS * 2 / 3 ))
 FASTP_THREADS=$(( THREADS > 16 ? 16 : THREADS )) # fastp caps at 16 worker threads
 MEM_BYTES=$(( 500 * 1024 * 1024 * 1024 ))        # 500 GB in bytes for MEGAHIT
-MIN_CONTIG_SIZE=1000
+MIN_CONTIG_SIZE=2000
 
 # Directories and Files
 FA_DIR="./fa"
@@ -169,7 +170,7 @@ if [ ! -f "$DIAMOND_OUT" ]; then
         --max-target-seqs 1 \
         --max-hsps 1 \
         --evalue 1e-5 \
-        --threads "$THREADS" \
+        --threads "$MAX_THREADS" \
         -b 12.0 \
         -c 1
 else
@@ -312,7 +313,7 @@ if [ -d "$CHECKM2_OUT" ]; then
 fi
 
 checkm2 predict \
-    --threads "$THREADS" \
+    --threads "$MAX_THREADS" \
     --input "$BINS_DIR" \
     -x fna \
     --output-directory "$CHECKM2_OUT" \
