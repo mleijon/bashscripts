@@ -232,7 +232,7 @@ echo "TaxVAMB binning completed."
 
 
 # === Step 7: Quality Control with CheckM2 ===
-echo "--- Step 8: Starting Quality Assessment with CheckM2 ---"
+echo "--- Step 7: Starting Quality Assessment with CheckM2 ---"
 
 mamba deactivate
 mamba activate checkm2
