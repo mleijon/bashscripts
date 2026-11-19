@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+import os
+import glob
+
+def calculate_category_abundance(filepath):
+    """
+    Parses a FASTA file and calculates the sum of (contig_length * coverage)
+    """
+    total_abundance = 0.0
+    if not os.path.exists(filepath):
+        return total_abundance
+        
+    with open(filepath, 'r') as f:
+        current_cov = 0.0
+        current_seq_len = 0
+        
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+                
+            if line.startswith('>'):
+                # Add the previous contig's (length * coverage) to the total
+                if current_seq_len > 0:
+                    total_abundance += current_cov * current_seq_len
+                
+                # Parse the new header
+                # Expected format: >contig name:cov_coverage:classification
+                try:
+                    parts = line.split(':')
+                    # Extract the middle part containing the coverage
+                    cov_str = parts[1]
+                    
+                    if cov_str.startswith('cov_'):
+                        current_cov = float(cov_str.replace('cov_', ''))
+                    else:
+                        current_cov = float(cov_str) # Fallback if 'cov_' is missing
+                except (IndexError, ValueError):
+                    print(f"Warning: Could not parse coverage from {line}")
+                    current_cov = 0.0
+                
+                # Reset sequence length for the new contig
+                current_seq_len = 0
+            else:
+                # Add to the length of the current contig
+                # (FASTA sequences can span multiple lines)
+                current_seq_len += len(line)
+                
+        # Don't forget to process the final contig in the file
+        if current_seq_len > 0:
+            total_abundance += current_cov * current_seq_len
+            
+    return total_abundance
+
+def main():
+    directory = "diamond_271.0"
+    categories = ["archaea", "bacteria", "eukaryota", "other", "viruses"]
+    
+    if not os.path.exists(directory):
+        print(f"Error: The directory '{directory}' was not found.")
+        return
+
+    # Find all unique sample names by scanning for .fa files
+    fa_files = glob.glob(os.path.join(directory, "*.fa"))
+    samples = set()
+    for filepath in fa_files:
+        basename = os.path.basename(filepath)
+        for cat in categories:
+            suffix = f"_{cat}.fa"
+            if basename.endswith(suffix):
+                sample_name = basename[:-len(suffix)]
+                samples.add(sample_name)
+                break
+                
+    samples = sorted(list(samples))
+    if not samples:
+        print("No samples found matching the expected file name formats.")
+        return
+
+    # Print the header for our output table
+    header = ["Sample"] + [f"{cat.capitalize()} (%)" for cat in categories]
+    print("\t".join(header))
+
+    # Process each sample
+    for sample in samples:
+        abundances = {}
+        sample_total = 0.0
+        
+        for cat in categories:
+            filepath = os.path.join(directory, f"{sample}_{cat}.fa")
+            abundance = calculate_category_abundance(filepath)
+            abundances[cat] = abundance
+            sample_total += abundance
+            
+        # Calculate percentages and format the output row
+        row = [sample]
+        for cat in categories:
+            if sample_total > 0:
+                percentage = (abundances[cat] / sample_total) * 100
+            else:
+                percentage = 0.0
+            row.append(f"{percentage:.4f}")
+            
+        print("\t".join(row))
+
+if __name__ == "__main__":
+    main()
